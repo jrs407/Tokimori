@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS `tokimori`.`canvas` (
   `library_idLibrary` INT NOT NULL,
   `title` VARCHAR(255) NULL,
   `contenido` LONGTEXT NULL, -- JSON del dibujo va aquí
-  PRIMARY KEY (`idcanvas`),
+  PRIMARY KEY (`idCanvas`),
   CONSTRAINT `fk_canvas_library1`
     FOREIGN KEY (`library_idLibrary`)
     REFERENCES `tokimori`.`library` (`idLibrary`)
