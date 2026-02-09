@@ -5,7 +5,7 @@ export interface LoginCredentials {
 
 export interface RegisterCredentials {
   email: string;
-  username: string;
+  name: string;
   password: string;
   confirmPassword: string;
 }
@@ -14,11 +14,10 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  username?: string;
 }
 
 export interface AuthResponse {
-  token: string;
+  token?: string;
   user: User;
 }
 

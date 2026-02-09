@@ -10,8 +10,30 @@ services:
       - REACT_APP_API_URL=http://localhost:8000
     depends_on:
       - db
+      - auth-service
     networks:
       - tokimori-network
+
+  auth-service:
+    container_name: tokimori-auth-service
+    build:
+      context: ./Backend/services/authenticationService
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=development
+      - MYSQL_HOST=db
+      - MYSQL_USER=tokimori_user
+      - MYSQL_PASSWORD=tokimori_password
+      - MYSQL_DATABASE=tokimori
+      - MYSQL_PORT=3306
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - tokimori-network
+    restart: always
 
   db:
     image: mysql:8.0

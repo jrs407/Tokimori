@@ -8,12 +8,12 @@ export const Register = () => {
   const navigate = useNavigate();
   const { register, isLoading, error } = useAuth();
   const [email, setEmail] = useState('');
-  const [username, setUsername] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<{
     email?: string;
-    username?: string;
+    name?: string;
     password?: string;
     confirmPassword?: string;
   }>({});
@@ -22,7 +22,7 @@ export const Register = () => {
     e.preventDefault();
 
     // Validar formulario
-    const validation = validateRegisterForm(email, username, password, confirmPassword);
+    const validation = validateRegisterForm(email, name, password, confirmPassword);
     if (!validation.isValid) {
       setErrors(validation.errors);
       return;
@@ -31,9 +31,9 @@ export const Register = () => {
     setErrors({});
 
     try {
-      await register({ email, username, password, confirmPassword });
+      await register({ email, name, password, confirmPassword });
       setEmail('');
-      setUsername('');
+      setName('');
       setPassword('');
       setConfirmPassword('');
       console.log('Registro exitoso');
@@ -73,20 +73,20 @@ export const Register = () => {
 
           {/* Campo Nombre de Usuario */}
           <div className={styles.formGroup}>
-            <label htmlFor="username" className={styles.label}>
+            <label htmlFor="name" className={styles.label}>
               Nombre de Usuario
             </label>
             <input
-              id="username"
+              id="name"
               type="text"
-              className={`${styles.input} ${errors.username ? styles.error : ''}`}
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              className={`${styles.input} ${errors.name ? styles.error : ''}`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               placeholder="usuario123"
               disabled={isLoading}
             />
-            {errors.username && (
-              <span className={styles.errorMessage}>{errors.username}</span>
+            {errors.name && (
+              <span className={styles.errorMessage}>{errors.name}</span>
             )}
           </div>
 

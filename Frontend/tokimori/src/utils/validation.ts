@@ -31,13 +31,13 @@ export const validateLoginForm = (email: string, password: string) => {
 
 export const validateRegisterForm = (
   email: string,
-  username: string,
+  name: string,
   password: string,
   confirmPassword: string
 ) => {
   const errors: {
     email?: string;
-    username?: string;
+    name?: string;
     password?: string;
     confirmPassword?: string;
   } = {};
@@ -48,10 +48,10 @@ export const validateRegisterForm = (
     errors.email = 'El email no es válido';
   }
 
-  if (!username.trim()) {
-    errors.username = 'El nombre de usuario es requerido';
-  } else if (username.length < 3) {
-    errors.username = 'El nombre debe tener al menos 3 caracteres';
+  if (!name.trim()) {
+    errors.name = 'El nombre es requerido';
+  } else if (name.length < 3) {
+    errors.name = 'El nombre debe tener al menos 3 caracteres';
   }
 
   if (!password) {
