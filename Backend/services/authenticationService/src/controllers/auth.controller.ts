@@ -65,3 +65,57 @@ export const register = async (req: Request, res: Response) => {
     return res.status(500).json({ message: 'Unexpected error while registering user.' });
   }
 };
+
+
+export const login = async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body as {
+      email?: string;
+      password?: string;
+    };
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required.' });
+    }
+
+    if (!EMAIL_REGEX.test(email)) {
+      return res.status(400).json({ message: 'Invalid email format.' });
+    }
+
+    const [users] = await pool.query<RowDataPacket[]>(
+      'SELECT idUsers, name, email, password FROM users WHERE email = ? LIMIT 1',
+      [email]
+    );
+
+    if (users.length === 0) {
+      return res.status(401).json({ message: 'Invalid email or password.' });
+    }
+
+    const user = users[0];
+    const isPasswordValid = await bcrypt.compare(password, user.password as string);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Invalid email or password.' });
+    }
+
+    const jwtSecret: string = process.env.JWT_SECRET || 'dev_secret';
+    const signOptions: SignOptions = { expiresIn: '7d' };
+    const token = jwt.sign(
+      { sub: user.idUsers, email: user.email },
+      jwtSecret,
+      signOptions
+    );
+
+    return res.status(200).json({
+      token,
+      user: {
+        id: user.idUsers,
+        name: user.name,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    console.error('Error logging in user:', error);
+    return res.status(500).json({ message: 'Unexpected error while logging in.' });
+  }
+};

@@ -28,25 +28,32 @@ const readUser = (): User | null => {
 };
 
 export const authService = {
-  /**
-   * Simula un login en el backend
-   * En una aplicación real, esto haría un POST a tu servidor
-   * NOTA: Login real no implementado en el backend
-   */
-  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    if (!credentials.email || !credentials.password) {
-      throw new Error('Email o contraseña incorrectos');
+  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+    const response = await fetch(`${AUTH_API_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: credentials.email,
+        password: credentials.password,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
+      throw new Error(errorData?.message || 'Error al iniciar sesión');
     }
 
-    const token = `token_${Date.now()}_${Math.random()}`;
+    const data = (await response.json()) as { token?: string; user: User };
+
     const authResponse: AuthResponse = {
-      token,
+      token: data.token,
       user: {
-        id: 'temp_' + Date.now(),
-        email: credentials.email,
-        name: 'Usuario',
+        id: String(data.user.id),
+        email: data.user.email,
+        name: data.user.name,
       },
     };
 
@@ -55,9 +62,7 @@ export const authService = {
     return authResponse;
   },
 
-  /**
-   * Registro real contra el backend
-   */
+
   register: async (credentials: RegisterCredentials): Promise<AuthResponse> => {
     const response = await fetch(`${AUTH_API_URL}/auth/register`, {
       method: 'POST',
