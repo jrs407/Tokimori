@@ -1,0 +1,43 @@
+services:
+  frontend:
+    container_name: tokimori-frontend
+    build:
+      context: ./Frontend/tokimori
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - db
+    networks:
+      - tokimori-network
+
+  db:
+    image: mysql:8.0
+    container_name: tokimori-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: tokimori
+      MYSQL_USER: tokimori_user
+      MYSQL_PASSWORD: tokimori_password
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./db:/docker-entrypoint-initdb.d
+    networks:
+      - tokimori-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+networks:
+  tokimori-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+    driver: local
