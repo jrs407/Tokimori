@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS `tokimori`.`objectives` (
   `idObjectives` INT NOT NULL AUTO_INCREMENT, -- AÑADIDO AUTO_INCREMENT
   `library_idLibrary` INT NOT NULL,
   `title` VARCHAR(255) NULL,
-  `colour` VARCHAR(255) NULL,
+  `colour` INT NULL,
   `number` INT NULL,
   PRIMARY KEY (`idObjectives`),
   CONSTRAINT `fk_objectives_library1`
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS `tokimori`.`notes` (
   `library_idLibrary` INT NOT NULL,
   `title` VARCHAR(255) NULL,
   `text` MEDIUMTEXT NULL,
-  `colour` VARCHAR(255) NULL,
+  `colour` INT NULL,
   PRIMARY KEY (`idNotes`),
   CONSTRAINT `fk_notes_library1`
     FOREIGN KEY (`library_idLibrary`)
