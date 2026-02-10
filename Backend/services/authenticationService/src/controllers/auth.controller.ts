@@ -135,3 +135,39 @@ export const usersList = async (req: Request, res: Response) => {
   }
 
 }
+
+
+export const getUserById = async (req: Request, res: Response) => {
+  try {
+    const { idUsers } = req.body as {
+      idUsers?: number;
+    };
+
+    if (!idUsers) {
+      return res.status(400).json({ message: 'User ID is required.' });
+    }
+
+    const [users] = await pool.query<RowDataPacket[]>(
+      'SELECT idUsers, name, email FROM users WHERE idUsers = ? LIMIT 1',
+      [idUsers]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const user = users[0];
+
+    return res.status(200).json({
+      user: {
+        id: user.idUsers,
+        name: user.name,
+        email: user.email,
+      },
+    });
+  
+  }catch (error) {
+    console.error('Error fetching user by ID:', error);
+    return res.status(500).json({ message: 'Unexpected error while fetching user by ID.' });
+  }
+};
