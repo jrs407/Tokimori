@@ -11,6 +11,7 @@ services:
     depends_on:
       - db
       - auth-service
+      - game-service
     networks:
       - tokimori-network
 
@@ -28,6 +29,30 @@ services:
       - MYSQL_PASSWORD=tokimori_password
       - MYSQL_DATABASE=tokimori
       - MYSQL_PORT=3306
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - tokimori-network
+    restart: always
+
+  game-service:
+    container_name: tokimori-game-service
+    build:
+      context: ./Backend/services/gameService
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - NODE_ENV=development
+      - MYSQL_HOST=db
+      - MYSQL_USER=tokimori_user
+      - MYSQL_PASSWORD=tokimori_password
+      - MYSQL_DATABASE=tokimori
+      - MYSQL_PORT=3306
+      - JWT_SECRET=dev_secret
+    volumes:
+      - ./Miscelanius/gameImage:/app/Miscelanius/gameImage
     depends_on:
       db:
         condition: service_healthy
