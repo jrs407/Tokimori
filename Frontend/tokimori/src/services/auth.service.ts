@@ -54,6 +54,8 @@ export const authService = {
         id: String(data.user.id),
         email: data.user.email,
         name: data.user.name,
+        isAdmin: data.user.isAdmin,
+        isPublic: data.user.isPublic,
       },
     };
 
@@ -89,6 +91,8 @@ export const authService = {
         id: String(data.user.id),
         email: data.user.email,
         name: data.user.name,
+        isAdmin: data.user.isAdmin,
+        isPublic: data.user.isPublic,
       },
     };
 

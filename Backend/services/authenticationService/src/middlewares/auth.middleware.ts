@@ -5,6 +5,7 @@ export interface AuthenticatedRequest extends Request {
   user?: {
     id: number;
     email: string;
+    isAdmin: boolean;
   };
 }
 
@@ -22,11 +23,13 @@ export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: N
     const decoded = jwt.verify(token, jwtSecret) as unknown as {
       sub: number;
       email: string;
+      isAdmin: boolean;
     };
 
     req.user = {
       id: decoded.sub,
       email: decoded.email,
+      isAdmin: decoded.isAdmin || false,
     };
 
     next();
