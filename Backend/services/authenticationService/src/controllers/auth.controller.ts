@@ -119,3 +119,19 @@ export const login = async (req: Request, res: Response) => {
     return res.status(500).json({ message: 'Unexpected error while logging in.' });
   }
 };
+
+
+export const usersList = async (req: Request, res: Response) => {
+  try {
+    const [users] = await pool.query<RowDataPacket[]>(
+      'SELECT idUsers, name, email FROM users'
+    );
+
+    return res.status(200).json({ users });
+  
+  }catch (error) {
+    console.error('Error fetching users list:', error);
+    return res.status(500).json({ message: 'Unexpected error while fetching users list.' });
+  }
+
+}
