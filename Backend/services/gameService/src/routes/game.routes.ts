@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createGame, gamesList, deleteGame, getGameById, getGameListByName } from '../controllers/game.controller';
-import { createLibrary } from '../controllers/library.controller';
+import { createLibrary, getLibraryListByUserId, getUsersListByGameId, deleteLibrary } from '../controllers/library.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { adminMiddleware } from '../middlewares/adminMiddleware';
 import { uploadGameImage } from '../middlewares/upload.middleware';
@@ -16,5 +16,8 @@ router.get('/gameListByName', getGameListByName);
 
 // library routes
 router.post('/createLibrary', authMiddleware, createLibrary);
+router.get('/libraryListByUserId', authMiddleware, getLibraryListByUserId);
+router.get('/usersListByGameId', getUsersListByGameId);
+router.delete('/deleteLibrary', authMiddleware, deleteLibrary);
 
 export default router;
