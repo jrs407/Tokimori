@@ -112,6 +112,223 @@ export const deleteGame = async (req: AuthenticatedRequest, res: Response) => {
     }
 };
 
+export const updateGame = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { gameIdToUpdate, name } = req.body as {
+            gameIdToUpdate?: number;
+            name?: string;
+        };
+
+        const authenticatedUserId = req.user?.id;
+        const isAdmin = req.user?.isAdmin;
+
+        if (!authenticatedUserId) {
+            return res.status(401).json({ message: 'User not authenticated.' });
+        }
+
+        if (!isAdmin) {
+            console.warn(
+                `Security: Non-admin user ${authenticatedUserId} attempted to update game ${gameIdToUpdate}.`
+            );
+            return res.status(403).json({ message: 'Only admins can update games.' });
+        }
+
+        if (!gameIdToUpdate) {
+            return res.status(400).json({ message: 'Game ID is required.' });
+        }
+
+        if (!name && !req.file) {
+            return res.status(400).json({ message: 'At least a game name or image is required to update.' });
+        }
+
+        const [gameRows] = await pool.query<RowDataPacket[]>(
+            'SELECT * FROM games WHERE idGames = ?',
+            [gameIdToUpdate]
+        );
+
+        if (gameRows.length === 0) {
+            return res.status(404).json({ message: 'Game not found.' });
+        }
+
+        const game = gameRows[0];
+        let newImagePath = game.img;
+
+        if (req.file) {
+            newImagePath = getImagePath(req.file.filename);
+            if (game.img) {
+                await deleteImage(game.img);
+            }
+        }
+
+        await pool.execute(
+            'UPDATE games SET name = ?, img = ? WHERE idGames = ?',
+            [name || game.name, newImagePath, gameIdToUpdate]
+        );
+
+        console.info(`Admin ${authenticatedUserId} updated game ${gameIdToUpdate}.`);
+
+        return res.status(200).json({
+            message: 'Game updated successfully.',
+            game: {
+                id: gameIdToUpdate,
+                name: name || game.name,
+                img: newImagePath,
+            },
+        });
+
+    } catch (error) {
+        console.error('Error updating game:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+export const fuseGames = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { gameIdToFuse, gameIdToKeep } = req.body as {
+            gameIdToFuse?: number;
+            gameIdToKeep?: number;
+        };
+
+        const authenticatedUserId = req.user?.id;
+        const isAdmin = req.user?.isAdmin;
+
+        if (!authenticatedUserId) {
+            return res.status(401).json({ message: 'User not authenticated.' });
+        }
+
+        if (!isAdmin) {
+            console.warn(
+                `Security: Non-admin user ${authenticatedUserId} attempted to fuse games.`
+            );
+            return res.status(403).json({ message: 'Only admins can fuse games.' });
+        }
+
+        if (!gameIdToFuse || !gameIdToKeep) {
+            return res.status(400).json({ message: 'Both game IDs are required.' });
+        }
+
+        if (gameIdToFuse === gameIdToKeep) {
+            return res.status(400).json({ message: 'Cannot fuse a game with itself.' });
+        }
+
+        const connection = await pool.getConnection();
+
+        try {
+            await connection.beginTransaction();
+
+            const [gameToFuseRows] = await connection.query<RowDataPacket[]>(
+                'SELECT * FROM games WHERE idGames = ?',
+                [gameIdToFuse]
+            );
+
+            const [gameToKeepRows] = await connection.query<RowDataPacket[]>(
+                'SELECT * FROM games WHERE idGames = ?',
+                [gameIdToKeep]
+            );
+
+            if (gameToFuseRows.length === 0 || gameToKeepRows.length === 0) {
+                await connection.rollback();
+                return res.status(404).json({ message: 'One or both games not found.' });
+            }
+
+            const [libraryEntries] = await connection.query<RowDataPacket[]>(
+                'SELECT * FROM library WHERE Games_idGames = ?',
+                [gameIdToFuse]
+            );
+
+            for (const fuseEntry of libraryEntries) {
+                const userId = fuseEntry.Users_idUsers;
+
+                const [existingEntry] = await connection.query<RowDataPacket[]>(
+                    'SELECT * FROM library WHERE Games_idGames = ? AND Users_idUsers = ?',
+                    [gameIdToKeep, userId]
+                );
+
+                if (existingEntry.length > 0) {
+                    const targetLibraryId = existingEntry[0].idLibrary;
+                    const sourceLibraryId = fuseEntry.idLibrary;
+
+                    await connection.execute(
+                        'UPDATE sessions SET Library_idLibrary = ? WHERE Library_idLibrary = ?',
+                        [targetLibraryId, sourceLibraryId]
+                    );
+
+
+                    const [objectives] = await connection.query<RowDataPacket[]>(
+                        'SELECT idObjectives FROM objectives WHERE library_idLibrary = ?',
+                        [sourceLibraryId]
+                    );
+
+                    for (const obj of objectives) {
+
+                        await connection.execute(
+                            'UPDATE objectives SET library_idLibrary = ? WHERE idObjectives = ?',
+                            [targetLibraryId, obj.idObjectives]
+                        );
+                    }
+
+                    await connection.execute(
+                        'UPDATE notes SET library_idLibrary = ? WHERE library_idLibrary = ?',
+                        [targetLibraryId, sourceLibraryId]
+                    );
+
+                    await connection.execute(
+                        'UPDATE canvas SET library_idLibrary = ? WHERE library_idLibrary = ?',
+                        [targetLibraryId, sourceLibraryId]
+                    );
+
+
+                    const newTotalHours = (existingEntry[0].totalHours || 0) + (fuseEntry.totalHours || 0);
+                    await connection.execute(
+                        'UPDATE library SET totalHours = ? WHERE idLibrary = ?',
+                        [newTotalHours, targetLibraryId]
+                    );
+
+                    await connection.execute(
+                        'DELETE FROM library WHERE idLibrary = ?',
+                        [sourceLibraryId]
+                    );
+                } else {
+
+                    await connection.execute(
+                        'UPDATE library SET Games_idGames = ? WHERE idLibrary = ?',
+                        [gameIdToKeep, fuseEntry.idLibrary]
+                    );
+                }
+            }
+
+
+            if (gameToFuseRows[0].img) {
+                await deleteImage(gameToFuseRows[0].img);
+            }
+
+            await connection.execute(
+                'DELETE FROM games WHERE idGames = ?',
+                [gameIdToFuse]
+            );
+
+            await connection.commit();
+
+            console.info(`Admin ${authenticatedUserId} fused game ${gameIdToFuse} into game ${gameIdToKeep}.`);
+
+            return res.status(200).json({
+                message: `Game ${gameIdToFuse} successfully fused into game ${gameIdToKeep}.`,
+                libraryEntriesProcessed: libraryEntries.length,
+            });
+
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+
+    } catch (error) {
+        console.error('Error fusing games:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 export const getGameById = async (req: Request, res: Response) => {
     try {
         const { idGames } = req.body as {

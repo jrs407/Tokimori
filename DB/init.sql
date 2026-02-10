@@ -66,13 +66,13 @@ CREATE TABLE IF NOT EXISTS `tokimori`.`sessions` (
   `minutes` INT NULL DEFAULT 0,
   PRIMARY KEY (`idSessions`),
   CONSTRAINT `fk_Sessions_Biblioteca`
-    FOREIGN KEY (`Library_idLibrary`)
+    FOREIGN KEY (`library_idLibrary`)
     REFERENCES `tokimori`.`library` (`idLibrary`)
     ON DELETE CASCADE)
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb4;
 
-CREATE INDEX `fk_Sessions_Biblioteca` ON `tokimori`.`sessions` (`Library_idLibrary` ASC) VISIBLE;
+CREATE INDEX `fk_Sessions_Biblioteca` ON `tokimori`.`sessions` (`library_idLibrary` ASC) VISIBLE;
 
 -- -----------------------------------------------------
 -- Table `tokimori`.`objectives`

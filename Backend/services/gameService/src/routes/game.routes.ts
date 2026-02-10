@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createGame, gamesList, deleteGame, getGameById, getGameListByName } from '../controllers/game.controller';
+import { createGame, gamesList, deleteGame, updateGame, fuseGames, getGameById, getGameListByName } from '../controllers/game.controller';
 import { createLibrary, getLibraryListByUserId, getUsersListByGameId, deleteLibrary } from '../controllers/library.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { adminMiddleware } from '../middlewares/adminMiddleware';
@@ -11,6 +11,8 @@ const router = Router();
 router.post('/create', uploadGameImage.single('image'), createGame);
 router.get('/gamesList', gamesList);
 router.delete('/deleteGame', authMiddleware, adminMiddleware, deleteGame);
+router.patch('/updateGame', uploadGameImage.single('image'), authMiddleware, adminMiddleware, updateGame);
+router.post('/fuseGames', authMiddleware, adminMiddleware, fuseGames);
 router.get('/gameId', getGameById);
 router.get('/gameListByName', getGameListByName);
 
