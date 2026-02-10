@@ -44,4 +44,161 @@ export const createGame = async (req: Request, res: Response) => {
   }
 };
 
+export const gamesList = async (req: Request, res: Response) => {
+  try {
 
+    const [games] = await pool.query<RowDataPacket[]>('SELECT idGames, name, img FROM games');
+
+    return res.status(200).json({ games });
+
+  } catch (error) {
+    console.error('Error fetching games:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const deleteGame = async (req: AuthenticatedRequest, res: Response) => {
+    try{
+        const { gameIdToDelete } = req.body as {
+            gameIdToDelete?: number;
+        };
+
+        const authenticatedUserId = req.user?.id;
+        const isAdmin = req.user?.isAdmin;
+
+        if (!authenticatedUserId) {
+            return res.status(401).json({ message: 'User not authenticated.' });
+        }
+
+        if (!isAdmin) {
+            console.warn(
+                `Security: Non-admin user ${authenticatedUserId} attempted to delete game ${gameIdToDelete}.`
+            );
+            return res.status(403).json({ message: 'Only admins can delete games.' });
+        }
+
+        if (!gameIdToDelete) {
+            return res.status(400).json({ message: 'Game ID is required.' });
+        }
+
+        const [gameRows] = await pool.query<RowDataPacket[]>(
+            'SELECT * FROM games WHERE idGames = ?',
+            [gameIdToDelete]
+        );
+
+        if (gameRows.length === 0) {
+            return res.status(404).json({ message: 'Game not found.' });
+        }
+
+        const game = gameRows[0];
+
+        await pool.execute(
+            'DELETE FROM games WHERE idGames = ?',
+            [gameIdToDelete]
+        );
+
+        if (game.img) {
+            await deleteImage(game.img);
+        }
+
+        console.info(`Admin ${authenticatedUserId} deleted game ${gameIdToDelete}.`);
+
+        return res.status(200).json({ message: 'Game deleted successfully.' });
+
+
+    }catch (error) {
+        console.error('Error deleting game:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+export const getGameById = async (req: Request, res: Response) => {
+    try {
+        const { idGames } = req.body as {
+            idGames?: number;
+        };
+
+        if (!idGames) {
+            return res.status(400).json({ message: 'Game ID is required.' });
+        }
+
+        const [gameRows] = await pool.query<RowDataPacket[]>(
+            'SELECT * FROM games WHERE idGames = ?',
+            [idGames]
+        );
+
+        if (gameRows.length === 0) {
+            return res.status(404).json({ message: 'Game not found.' });
+        }
+
+        const game = gameRows[0];
+    
+        return res.status(200).json({ game });
+
+    } catch (error) {
+        console.error('Error fetching game by ID:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+
+export const getGameListByName = async (req: Request, res: Response) => {
+    try {
+        const { gameName } = req.body as {
+            gameName?: number;
+        };
+
+        if (!gameName) {
+            return res.status(400).json({ message: 'Game name is required.' });
+        }
+
+        const [gameRows] = await pool.query<RowDataPacket[]>(
+            'SELECT * FROM games WHERE name LIKE ?',
+            [`%${gameName}%`]
+        );
+
+        if (gameRows.length === 0) {
+            return res.status(404).json({ message: 'No games found with that name.' });
+        }
+     
+        return res.status(200).json({ games: gameRows });
+
+
+    } catch (error) {
+        console.error('Error fetching game by ID:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+export const createLibrary = async (req: Request, res: Response) => {
+    try {
+        const { idGames, idUsers } = req.body as {
+            idGames?: number;
+            idUsers?: number;
+        };
+
+        if (!idGames || !idUsers) {
+            return res.status(400).json({ message: 'Game ID and User ID are required.' });
+        }
+
+        const [existingLibrary] = await pool.query<RowDataPacket[]>(
+            'SELECT * FROM library WHERE idGames = ? AND idUsers = ?',
+            [idGames, idUsers]
+        );
+
+        if (existingLibrary.length > 0) {
+            return res.status(400).json({ message: 'This game is already in the user\'s library.' });
+        }
+
+        await pool.execute(
+            'INSERT INTO library (idGames, idUsers, totalHours) VALUES (?, ?, ?)',
+            [idGames, idUsers, 0]
+        );
+
+        return res.status(201).json({ message: 'Game added to library successfully.' });
+
+    } catch (error) {
+        console.error('Error creating library:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
