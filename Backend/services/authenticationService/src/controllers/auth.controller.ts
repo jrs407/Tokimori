@@ -255,3 +255,79 @@ export const deleteUser = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(500).json({ message: 'Unexpected error while deleting user.' });
   }
 };
+
+export const updateUser = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { userIdToUpdate, name, email, password } = req.body as {
+      userIdToUpdate?: number;
+      name?: string;
+      email?: string;
+      password?: string;
+    };
+
+    const authenticatedUserId = req.user?.id;
+
+    if (!authenticatedUserId) {
+      return res.status(401).json({ message: 'User not authenticated.' });
+    }
+
+    if (!userIdToUpdate) {
+      return res.status(400).json({ message: 'User ID to update is required.' });
+    }
+
+    if (userIdToUpdate !== authenticatedUserId) {
+      console.warn(
+        `Security: User ${authenticatedUserId} attempted to update user ${userIdToUpdate}.`
+      );
+      return res.status(403).json({ message: 'You can only update your own account.' });
+    }
+
+    const [users] = await pool.query<RowDataPacket[]>(
+      'SELECT idUsers FROM users WHERE idUsers = ? LIMIT 1',
+      [userIdToUpdate]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const fieldsToUpdate: string[] = [];
+    const values: (string | number)[] = [];
+
+    if (name) {
+      fieldsToUpdate.push('name = ?');
+      values.push(name);
+    }
+
+    if (email) {
+      if (!EMAIL_REGEX.test(email)) {
+        return res.status(400).json({ message: 'Invalid email format.' });
+      }
+      fieldsToUpdate.push('email = ?');
+      values.push(email);
+    }
+
+    if (password) {
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
+      }
+      const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10);
+      const passwordHash = await bcrypt.hash(password, saltRounds);
+      fieldsToUpdate.push('password = ?');
+      values.push(passwordHash);
+    }
+
+    if (fieldsToUpdate.length === 0) {
+      return res.status(400).json({ message: 'At least one field (name, email, or password) must be provided for update.' });
+    }
+
+    values.push(userIdToUpdate);
+    const updateQuery = `UPDATE users SET ${fieldsToUpdate.join(', ')} WHERE idUsers = ?`;
+
+    await pool.execute<ResultSetHeader>(updateQuery, values);
+    return res.status(200).json({ message: 'User account updated successfully.' });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    return res.status(500).json({ message: 'Unexpected error while updating user.' });
+  }
+};
