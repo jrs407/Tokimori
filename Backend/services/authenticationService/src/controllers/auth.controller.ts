@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import pool from '../db';
+import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
 
 const MIN_PASSWORD_LENGTH = 6;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -209,5 +210,48 @@ export const getUserByEmail = async (req: Request, res: Response) => {
     console.error('Error fetching user by email:', error);
     return res.status(500).json({ message: 'Unexpected error while fetching user by email.' });
   }
-
 }
+
+export const deleteUser = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { userIdToDelete } = req.body as {
+      userIdToDelete?: number;
+    };
+
+    const authenticatedUserId = req.user?.id;
+
+    if (!authenticatedUserId) {
+      return res.status(401).json({ message: 'User not authenticated.' });
+    }
+
+    if (!userIdToDelete) {
+      return res.status(400).json({ message: 'User ID to delete is required.' });
+    }
+
+    if (userIdToDelete !== authenticatedUserId) {
+      console.warn(
+        `Security: User ${authenticatedUserId} attempted to delete user ${userIdToDelete}.`
+      );
+      return res.status(403).json({ message: 'You can only delete your own account.' });
+    }
+
+    const [users] = await pool.query<RowDataPacket[]>(
+      'SELECT idUsers FROM users WHERE idUsers = ? LIMIT 1',
+      [userIdToDelete]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    await pool.execute<ResultSetHeader>(
+      'DELETE FROM users WHERE idUsers = ?',
+      [userIdToDelete]
+    );
+
+    return res.status(200).json({ message: 'User account deleted successfully.' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    return res.status(500).json({ message: 'Unexpected error while deleting user.' });
+  }
+};
