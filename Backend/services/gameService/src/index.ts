@@ -12,7 +12,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Servir archivos estáticos (imágenes)
+
 app.use('/Miscelanius/gameImage', express.static(path.join(__dirname, '../..', 'Miscelanius/gameImage')));
 
 app.get('/health', (req, res) => {
@@ -21,7 +21,6 @@ app.get('/health', (req, res) => {
 
 app.use('/games', gameRoutes);
 
-// Error handling para multer
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (err instanceof Error) {
     if (err.message === 'Only image files are allowed') {
