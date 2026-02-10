@@ -170,35 +170,3 @@ export const getGameListByName = async (req: Request, res: Response) => {
     }
 };
 
-export const createLibrary = async (req: Request, res: Response) => {
-    try {
-        const { idGames, idUsers } = req.body as {
-            idGames?: number;
-            idUsers?: number;
-        };
-
-        if (!idGames || !idUsers) {
-            return res.status(400).json({ message: 'Game ID and User ID are required.' });
-        }
-
-        const [existingLibrary] = await pool.query<RowDataPacket[]>(
-            'SELECT * FROM library WHERE idGames = ? AND idUsers = ?',
-            [idGames, idUsers]
-        );
-
-        if (existingLibrary.length > 0) {
-            return res.status(400).json({ message: 'This game is already in the user\'s library.' });
-        }
-
-        await pool.execute(
-            'INSERT INTO library (idGames, idUsers, totalHours) VALUES (?, ?, ?)',
-            [idGames, idUsers, 0]
-        );
-
-        return res.status(201).json({ message: 'Game added to library successfully.' });
-
-    } catch (error) {
-        console.error('Error creating library:', error);
-        res.status(500).json({ message: 'Internal server error' });
-    }
-};
