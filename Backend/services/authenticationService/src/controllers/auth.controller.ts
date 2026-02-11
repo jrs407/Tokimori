@@ -8,6 +8,9 @@ import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
 const MIN_PASSWORD_LENGTH = 6;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Register a new user account with name, email, and password
+ */
 export const register = async (req: Request, res: Response) => {
   try {
     const { name, email, password } = req.body as {
@@ -69,7 +72,9 @@ export const register = async (req: Request, res: Response) => {
   }
 };
 
-
+/**
+ * Authenticate user credentials and generate JWT token
+ */
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body as {
@@ -125,7 +130,9 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
-
+/**
+ * Retrieve list of all registered users
+ */
 export const usersList = async (req: Request, res: Response) => {
   try {
     const [users] = await pool.query<RowDataPacket[]>(
@@ -141,7 +148,9 @@ export const usersList = async (req: Request, res: Response) => {
 
 }
 
-
+/**
+ * Get user information by user ID
+ */
 export const getUserById = async (req: Request, res: Response) => {
   try {
     const { idUsers } = req.body as {
@@ -179,7 +188,9 @@ export const getUserById = async (req: Request, res: Response) => {
   }
 };
 
-
+/**
+ * Get user information by email address
+ */
 export const getUserByEmail = async (req: Request, res: Response) => {
   try {
     const { email } = req.body as {
@@ -220,6 +231,9 @@ export const getUserByEmail = async (req: Request, res: Response) => {
   }
 }
 
+/**
+ * Delete a user account (own account or admin can delete any user)
+ */
 export const deleteUser = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { userIdToDelete } = req.body as {
@@ -269,6 +283,9 @@ export const deleteUser = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+/**
+ * Update user account information (name, email, password, public status)
+ */
 export const updateUser = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { userIdToUpdate, name, email, password, isAdmin, isPublic } = req.body as {
@@ -357,6 +374,9 @@ export const updateUser = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+/**
+ * Promote a user to admin role (admin only)
+ */
 export const promoteToAdmin = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { userIdToPromote } = req.body as {
@@ -412,6 +432,9 @@ export const promoteToAdmin = async (req: AuthenticatedRequest, res: Response) =
   }
 };
 
+/**
+ * Create the first admin account in the system
+ */
 export const createFirstAdmin = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body as {

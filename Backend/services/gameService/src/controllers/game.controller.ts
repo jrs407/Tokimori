@@ -4,7 +4,9 @@ import pool from '../db';
 import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { getImagePath, deleteImage } from '../middlewares/upload.middleware';
 
-
+/**
+ * Create a new game with name and optional image
+ */
 // Revisar creacion de juegos con imagenes, desde el terminal no consigo que funcione, 
 // quizá desde algun desplegable frontend funcione, desde el terminal no
 export const createGame = async (req: Request, res: Response) => {
@@ -44,6 +46,9 @@ export const createGame = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Retrieve list of all games in the database
+ */
 export const gamesList = async (req: Request, res: Response) => {
   try {
 
@@ -57,6 +62,9 @@ export const gamesList = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Delete a game from the database (admin only)
+ */
 export const deleteGame = async (req: AuthenticatedRequest, res: Response) => {
     try{
         const { gameIdToDelete } = req.body as {
@@ -112,6 +120,9 @@ export const deleteGame = async (req: AuthenticatedRequest, res: Response) => {
     }
 };
 
+/**
+ * Update game information and/or image (admin only)
+ */
 export const updateGame = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { gameIdToUpdate, name } = req.body as {
@@ -182,6 +193,9 @@ export const updateGame = async (req: AuthenticatedRequest, res: Response) => {
     }
 };
 
+/**
+ * Merge two games into one, combining all related data (admin only)
+ */
 export const fuseGames = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { gameIdToFuse, gameIdToKeep } = req.body as {
@@ -331,6 +345,9 @@ export const fuseGames = async (req: AuthenticatedRequest, res: Response) => {
     }
 };
 
+/**
+ * Get game information by game ID
+ */
 export const getGameById = async (req: Request, res: Response) => {
     try {
         const { idGames } = req.body as {
@@ -360,7 +377,9 @@ export const getGameById = async (req: Request, res: Response) => {
     }
 };
 
-
+/**
+ * Search for games by name using pattern matching
+ */
 export const getGameListByName = async (req: Request, res: Response) => {
     try {
         const { gameName } = req.body as {

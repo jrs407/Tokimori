@@ -4,6 +4,9 @@ import pool from '../db';
 import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { getImagePath, deleteImage } from '../middlewares/upload.middleware';
 
+/**
+ * Add a game to user's library
+ */
 export const createLibrary = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { idGames, idUsers } = req.body as {
@@ -51,6 +54,9 @@ export const createLibrary = async (req: AuthenticatedRequest, res: Response) =>
     }
 };
 
+/**
+ * Get user's library ordered by pinned status and game name
+ */
 export const getLibraryListByUserId = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { idUsers } = req.body as {
@@ -92,6 +98,9 @@ export const getLibraryListByUserId = async (req: AuthenticatedRequest, res: Res
     }
 };
 
+/**
+ * Get user's library ordered by pinned status and play hours (descending)
+ */
 export const getLibraryListHourByUserId = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { idUsers } = req.body as {
@@ -133,6 +142,9 @@ export const getLibraryListHourByUserId = async (req: AuthenticatedRequest, res:
     }
 };
 
+/**
+ * Get list of public users who have a specific game in their library
+ */
 export const getUsersListByGameId = async (req: Request, res: Response) => {
     try {
         const { idGames } = req.params as {
@@ -159,6 +171,9 @@ export const getUsersListByGameId = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * Update library entry's favorite and/or pinned status
+ */
 export const updateLibrary = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { idLibrary, isFavorite, isPinned } = req.body as {
@@ -227,6 +242,9 @@ export const updateLibrary = async (req: AuthenticatedRequest, res: Response) =>
     }
 };
 
+/**
+ * Search for games NOT in user's library by name pattern
+ */
 export const searchGamesNotInLibrary = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { idUsers, searchTerm } = req.body as {
@@ -276,6 +294,9 @@ export const searchGamesNotInLibrary = async (req: AuthenticatedRequest, res: Re
     }
 };
 
+/**
+ * Search for games IN user's library by name pattern
+ */
 export const searchGamesInLibrary = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { idUsers, searchTerm } = req.body as {
@@ -325,6 +346,9 @@ export const searchGamesInLibrary = async (req: AuthenticatedRequest, res: Respo
     }
 };
 
+/**
+ * Get all games marked as favorite in user's library
+ */
 export const getFavoriteGames = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { idUsers } = req.body as {
@@ -366,6 +390,9 @@ export const getFavoriteGames = async (req: AuthenticatedRequest, res: Response)
     }
 };
 
+/**
+ * Get all games marked as pinned in user's library
+ */
 export const getPinnedGames = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { idUsers } = req.body as {
@@ -407,6 +434,9 @@ export const getPinnedGames = async (req: AuthenticatedRequest, res: Response) =
     }
 };
 
+/**
+ * Remove a game from user's library
+ */
 export const deleteLibrary = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { idLibrary } = req.body as {
