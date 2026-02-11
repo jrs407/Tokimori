@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import path from 'path';
 import multer from 'multer';
 import libraryRoutes from './routes/library.routes';
 
