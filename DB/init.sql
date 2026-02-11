@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS `tokimori`.`objectives` (
   `idObjectives` INT NOT NULL AUTO_INCREMENT, 
   `library_idLibrary` INT NOT NULL,
   `title` VARCHAR(255) NULL,
+  `description` MEDIUMTEXT NULL,
   `colour` INT NULL,
   `number` INT NULL,
   `isFavorite` TINYINT(1) NOT NULL DEFAULT 0,
