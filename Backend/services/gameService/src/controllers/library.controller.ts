@@ -39,8 +39,8 @@ export const createLibrary = async (req: AuthenticatedRequest, res: Response) =>
         }
 
         await pool.execute(
-            'INSERT INTO library (Games_idGames, Users_idUsers) VALUES (?, ?)',
-            [idGames, idUsers]
+            'INSERT INTO library (Games_idGames, Users_idUsers, isFavorite, isPinned) VALUES (?, ?, ?, ?)',
+            [idGames, idUsers, 0, 0]
         );
 
         return res.status(201).json({ message: 'Game added to library successfully.' });
@@ -76,7 +76,7 @@ export const getLibraryListByUserId = async (req: AuthenticatedRequest, res: Res
         }
 
         const [library] = await pool.query<RowDataPacket[]>(
-            `SELECT g.idGames, g.name, g.img, l.totalHours, l.idLibrary
+            `SELECT g.idGames, g.name, g.img, l.totalHours, l.idLibrary, l.isFavorite, l.isPinned
              FROM library l 
              JOIN games g ON l.Games_idGames = g.idGames 
              WHERE l.Users_idUsers = ?`,

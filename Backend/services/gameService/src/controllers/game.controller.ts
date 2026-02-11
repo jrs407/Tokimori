@@ -279,9 +279,11 @@ export const fuseGames = async (req: AuthenticatedRequest, res: Response) => {
 
 
                     const newTotalHours = (existingEntry[0].totalHours || 0) + (fuseEntry.totalHours || 0);
+                    const newIsFavorite = ((existingEntry[0].isFavorite || 0) || (fuseEntry.isFavorite || 0)) ? 1 : 0;
+                    const newIsPinned = ((existingEntry[0].isPinned || 0) || (fuseEntry.isPinned || 0)) ? 1 : 0;
                     await connection.execute(
-                        'UPDATE library SET totalHours = ? WHERE idLibrary = ?',
-                        [newTotalHours, targetLibraryId]
+                        'UPDATE library SET totalHours = ?, isFavorite = ?, isPinned = ? WHERE idLibrary = ?',
+                        [newTotalHours, newIsFavorite, newIsPinned, targetLibraryId]
                     );
 
                     await connection.execute(
