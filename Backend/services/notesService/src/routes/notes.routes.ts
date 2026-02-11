@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createNote, updateNote, getNotesByLibrary, getPinnedNotes, getFavoriteNotes, deleteNote, getNote, getNotesByUser } from '../controllers/notes.controller';
+import { createNote, updateNote, getNotesByLibrary, getPinnedNotes, getFavoriteNotes, deleteNote, getNote, getNotesByUser, searchNotesByTitle } from '../controllers/notes.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { adminMiddleware } from '../middlewares/adminMiddleware';
 
@@ -13,5 +13,6 @@ router.post('/favoriteNotes', authMiddleware, getFavoriteNotes);
 router.delete('/delete', authMiddleware, deleteNote);
 router.post('/getNote', authMiddleware, getNote);
 router.post('/listByUser', authMiddleware, getNotesByUser);
+router.post('/search', authMiddleware, searchNotesByTitle);
 
 export default router;

@@ -456,3 +456,57 @@ export const getNotesByUser = async (req: AuthenticatedRequest, res: Response) =
         res.status(500).json({ message: 'Internal server error' });
     }
 };
+
+/**
+ * Search notes by title within a specific library
+ */
+export const searchNotesByTitle = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { idLibrary, searchTerm } = req.body as { 
+            idLibrary?: number;
+            searchTerm?: string;
+        };
+
+        const authenticatedUserId = req.user?.id;
+        const isAdmin = req.user?.isAdmin;
+
+        if (!authenticatedUserId) {
+            return res.status(401).json({ message: 'User not authenticated.' });
+        }
+
+        if (!idLibrary || searchTerm === undefined) {
+            return res.status(400).json({ message: 'idLibrary and searchTerm are required.' });
+        }
+
+        const [libraryRows] = await pool.query<RowDataPacket[]>(
+            'SELECT Users_idUsers FROM library WHERE idLibrary = ?',
+            [idLibrary]
+        );
+
+        if (libraryRows.length === 0) {
+            return res.status(404).json({ message: 'Library not found.' });
+        }
+
+        if (libraryRows[0].Users_idUsers !== authenticatedUserId && !isAdmin) {
+            console.warn(
+                `Security: User ${authenticatedUserId} attempted to search notes in library ${idLibrary}.`
+            );
+            return res.status(403).json({ message: 'You can only search notes in your own library.' });
+        }
+
+        const searchPattern = `%${searchTerm}%`;
+        const [notes] = await pool.query<RowDataPacket[]>(
+            `SELECT idNotes, library_idLibrary, title, text, colour, isFavorite, isPinned
+             FROM notes
+             WHERE library_idLibrary = ? AND title LIKE ?
+             ORDER BY isPinned DESC, title ASC`,
+            [idLibrary, searchPattern]
+        );
+
+        return res.status(200).json({ notes });
+
+    } catch (error) {
+        console.error('Error searching notes by title:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
