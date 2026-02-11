@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS `tokimori`.`library` (
   `Users_idUsers` INT NOT NULL,
   `Games_idGames` INT NOT NULL,
   `totalHours` DECIMAL(10,2) NULL DEFAULT '0.00',
+  `isFavorite` TINYINT(1) NOT NULL DEFAULT 0,
+  `isPinned` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`idLibrary`),
   CONSTRAINT `fk_Biblioteca_Games`
     FOREIGN KEY (`Games_idGames`)
@@ -61,7 +63,7 @@ CREATE INDEX `fk_Biblioteca_Games` ON `tokimori`.`library` (`Games_idGames` ASC)
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `tokimori`.`sessions` (
   `idSessions` INT NOT NULL AUTO_INCREMENT,
-  `Library_idLibrary` INT NOT NULL,
+  `library_idLibrary` INT NOT NULL,
   `date` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
   `minutes` INT NULL DEFAULT 0,
   PRIMARY KEY (`idSessions`),
@@ -78,16 +80,18 @@ CREATE INDEX `fk_Sessions_Biblioteca` ON `tokimori`.`sessions` (`library_idLibra
 -- Table `tokimori`.`objectives`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `tokimori`.`objectives` (
-  `idObjectives` INT NOT NULL AUTO_INCREMENT, -- AÑADIDO AUTO_INCREMENT
+  `idObjectives` INT NOT NULL AUTO_INCREMENT, 
   `library_idLibrary` INT NOT NULL,
   `title` VARCHAR(255) NULL,
   `colour` INT NULL,
   `number` INT NULL,
+  `isFavorite` TINYINT(1) NOT NULL DEFAULT 0,
+  `isPinned` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`idObjectives`),
   CONSTRAINT `fk_objectives_library1`
     FOREIGN KEY (`library_idLibrary`)
     REFERENCES `tokimori`.`library` (`idLibrary`)
-    ON DELETE CASCADE -- AÑADIDO CASCADE
+    ON DELETE CASCADE 
     ON UPDATE NO ACTION)
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb4;
@@ -98,35 +102,39 @@ CREATE INDEX `fk_objectives_library1_idx` ON `tokimori`.`objectives` (`library_i
 -- Table `tokimori`.`tasks`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `tokimori`.`tasks` (
-  `idTask` INT NOT NULL AUTO_INCREMENT, -- AÑADIDO AUTO_INCREMENT
+  `idTask` INT NOT NULL AUTO_INCREMENT,
   `objectives_idObjectives` INT NOT NULL,
   `completed` TINYINT(1) NULL DEFAULT 0,
   `title` VARCHAR(255) NULL,
+  `isFavorite` TINYINT(1) NOT NULL DEFAULT 0,
+  `isPinned` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`idTask`),
   CONSTRAINT `fk_Task_objectives1`
     FOREIGN KEY (`objectives_idObjectives`)
     REFERENCES `tokimori`.`objectives` (`idObjectives`)
-    ON DELETE CASCADE -- AÑADIDO CASCADE
+    ON DELETE CASCADE 
     ON UPDATE NO ACTION)
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb4;
 
-CREATE INDEX `fk_Task_objectives1_idx` ON `tokimori`.`tasks` (`objectives_idObjectives` ASC) VISIBLE; -- Faltaba el índice visible
+CREATE INDEX `fk_Task_objectives1_idx` ON `tokimori`.`tasks` (`objectives_idObjectives` ASC) VISIBLE; 
 
 -- -----------------------------------------------------
 -- Table `tokimori`.`notes`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `tokimori`.`notes` (
-  `idNotes` INT NOT NULL AUTO_INCREMENT, -- AÑADIDO AUTO_INCREMENT
+  `idNotes` INT NOT NULL AUTO_INCREMENT, 
   `library_idLibrary` INT NOT NULL,
   `title` VARCHAR(255) NULL,
   `text` MEDIUMTEXT NULL,
   `colour` INT NULL,
+  `isFavorite` TINYINT(1) NOT NULL DEFAULT 0,
+  `isPinned` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`idNotes`),
   CONSTRAINT `fk_notes_library1`
     FOREIGN KEY (`library_idLibrary`)
     REFERENCES `tokimori`.`library` (`idLibrary`)
-    ON DELETE CASCADE -- AÑADIDO CASCADE
+    ON DELETE CASCADE 
     ON UPDATE NO ACTION)
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb4;
@@ -137,15 +145,17 @@ CREATE INDEX `fk_notes_library1_idx` ON `tokimori`.`notes` (`library_idLibrary` 
 -- Table `tokimori`.`canvas`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `tokimori`.`canvas` (
-  `idcanvas` INT NOT NULL AUTO_INCREMENT, -- AÑADIDO AUTO_INCREMENT
+  `idcanvas` INT NOT NULL AUTO_INCREMENT, 
   `library_idLibrary` INT NOT NULL,
   `title` VARCHAR(255) NULL,
-  `contenido` LONGTEXT NULL, -- JSON del dibujo va aquí
+  `contenido` LONGTEXT NULL, 
+  `isFavorite` TINYINT(1) NOT NULL DEFAULT 0,
+  `isPinned` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`idCanvas`),
   CONSTRAINT `fk_canvas_library1`
     FOREIGN KEY (`library_idLibrary`)
     REFERENCES `tokimori`.`library` (`idLibrary`)
-    ON DELETE CASCADE -- AÑADIDO CASCADE
+    ON DELETE CASCADE 
     ON UPDATE NO ACTION)
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb4;
