@@ -303,3 +303,156 @@ export const getFavoriteNotes = async (req: AuthenticatedRequest, res: Response)
         res.status(500).json({ message: 'Internal server error' });
     }
 };
+
+/**
+ * Delete a note by ID
+ */
+export const deleteNote = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { idNote } = req.body as {
+            idNote?: number;
+        };
+
+        const authenticatedUserId = req.user?.id;
+        const isAdmin = req.user?.isAdmin;
+
+        if (!authenticatedUserId) {
+            return res.status(401).json({ message: 'User not authenticated.' });
+        }
+
+        if (!idNote) {
+            return res.status(400).json({ message: 'idNote is required.' });
+        }
+
+        const [noteRows] = await pool.query<RowDataPacket[]>(
+            `SELECT n.idNotes, l.Users_idUsers 
+             FROM notes n
+             JOIN library l ON n.library_idLibrary = l.idLibrary
+             WHERE n.idNotes = ?`,
+            [idNote]
+        );
+
+        if (noteRows.length === 0) {
+            return res.status(404).json({ message: 'Note not found.' });
+        }
+
+        if (noteRows[0].Users_idUsers !== authenticatedUserId && !isAdmin) {
+            console.warn(
+                `Security: User ${authenticatedUserId} attempted to delete note ${idNote} owned by user ${noteRows[0].Users_idUsers}.`
+            );
+            return res.status(403).json({ message: 'You can only delete your own notes.' });
+        }
+
+        await pool.execute(
+            'DELETE FROM notes WHERE idNotes = ?',
+            [idNote]
+        );
+
+        return res.status(200).json({ message: 'Note deleted successfully.' });
+
+    } catch (error) {
+        console.error('Error deleting note:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+/**
+ * Get a specific note by ID
+ */
+export const getNote = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { idNote } = req.body as {
+            idNote?: number;
+        };
+
+        const authenticatedUserId = req.user?.id;
+        const isAdmin = req.user?.isAdmin;
+
+        if (!authenticatedUserId) {
+            return res.status(401).json({ message: 'User not authenticated.' });
+        }
+
+        if (!idNote) {
+            return res.status(400).json({ message: 'idNote is required.' });
+        }
+
+        const [noteRows] = await pool.query<RowDataPacket[]>(
+            `SELECT n.idNotes, n.library_idLibrary, n.title, n.text, n.colour, n.isFavorite, n.isPinned, l.Users_idUsers
+             FROM notes n
+             JOIN library l ON n.library_idLibrary = l.idLibrary
+             WHERE n.idNotes = ?`,
+            [idNote]
+        );
+
+        if (noteRows.length === 0) {
+            return res.status(404).json({ message: 'Note not found.' });
+        }
+
+        if (noteRows[0].Users_idUsers !== authenticatedUserId && !isAdmin) {
+            console.warn(
+                `Security: User ${authenticatedUserId} attempted to access note ${idNote} owned by user ${noteRows[0].Users_idUsers}.`
+            );
+            return res.status(403).json({ message: 'You can only view your own notes.' });
+        }
+
+        const note = {
+            idNotes: noteRows[0].idNotes,
+            library_idLibrary: noteRows[0].library_idLibrary,
+            title: noteRows[0].title,
+            text: noteRows[0].text,
+            colour: noteRows[0].colour,
+            isFavorite: noteRows[0].isFavorite,
+            isPinned: noteRows[0].isPinned
+        };
+
+        return res.status(200).json({ note });
+
+    } catch (error) {
+        console.error('Error fetching note:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+/**
+ * Get all notes for a specific user (across all libraries)
+ */
+export const getNotesByUser = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { idUser } = req.body as {
+            idUser?: number;
+        };
+
+        const authenticatedUserId = req.user?.id;
+        const isAdmin = req.user?.isAdmin;
+
+        if (!authenticatedUserId) {
+            return res.status(401).json({ message: 'User not authenticated.' });
+        }
+
+        if (!idUser) {
+            return res.status(400).json({ message: 'idUser is required.' });
+        }
+
+        if (idUser !== authenticatedUserId && !isAdmin) {
+            console.warn(
+                `Security: User ${authenticatedUserId} attempted to access notes for user ${idUser}.`
+            );
+            return res.status(403).json({ message: 'You can only view your own notes.' });
+        }
+
+        const [notes] = await pool.query<RowDataPacket[]>(
+            `SELECT n.idNotes, n.library_idLibrary, n.title, n.text, n.colour, n.isFavorite, n.isPinned
+             FROM notes n
+             JOIN library l ON n.library_idLibrary = l.idLibrary
+             WHERE l.Users_idUsers = ?
+             ORDER BY n.isPinned DESC, n.title ASC`,
+            [idUser]
+        );
+
+        return res.status(200).json({ notes });
+
+    } catch (error) {
+        console.error('Error fetching user notes:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
