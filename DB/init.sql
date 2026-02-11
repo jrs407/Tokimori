@@ -85,7 +85,6 @@ CREATE TABLE IF NOT EXISTS `tokimori`.`objectives` (
   `title` VARCHAR(255) NULL,
   `description` MEDIUMTEXT NULL,
   `colour` INT NULL,
-  `number` INT NULL,
   `isFavorite` TINYINT(1) NOT NULL DEFAULT 0,
   `isPinned` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`idObjectives`),
@@ -152,7 +151,7 @@ CREATE TABLE IF NOT EXISTS `tokimori`.`canvas` (
   `contenido` LONGTEXT NULL, 
   `isFavorite` TINYINT(1) NOT NULL DEFAULT 0,
   `isPinned` TINYINT(1) NOT NULL DEFAULT 0,
-  PRIMARY KEY (`idCanvas`),
+  PRIMARY KEY (`idcanvas`),
   CONSTRAINT `fk_canvas_library1`
     FOREIGN KEY (`library_idLibrary`)
     REFERENCES `tokimori`.`library` (`idLibrary`)
