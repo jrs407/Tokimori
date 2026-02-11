@@ -482,3 +482,64 @@ export const deleteLibrary = async (req: AuthenticatedRequest, res: Response) =>
         res.status(500).json({ message: 'Internal server error' });
     }
 };
+
+/**
+ * Get detailed information for a specific library entry by ID
+ */
+export const getLibrary = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { idLibrary } = req.body as {
+            idLibrary?: number;
+        };
+
+        const authenticatedUserId = req.user?.id;
+        const isAdmin = req.user?.isAdmin;
+
+        if (!authenticatedUserId) {
+            return res.status(401).json({ message: 'User not authenticated.' });
+        }
+
+        if (!idLibrary) {
+            return res.status(400).json({ message: 'Library ID is required.' });
+        }
+
+        const [libraryRows] = await pool.query<RowDataPacket[]>(
+            `SELECT l.idLibrary, l.Users_idUsers, l.Games_idGames, l.totalHours, l.isFavorite, l.isPinned,
+                    g.name as gameName, g.img as gameImage
+             FROM library l
+             JOIN games g ON l.Games_idGames = g.idGames
+             WHERE l.idLibrary = ?`,
+            [idLibrary]
+        );
+
+        if (libraryRows.length === 0) {
+            return res.status(404).json({ message: 'Library entry not found.' });
+        }
+
+        const libraryEntry = libraryRows[0];
+
+        if (libraryEntry.Users_idUsers !== authenticatedUserId && !isAdmin) {
+            console.warn(
+                `Security: User ${authenticatedUserId} attempted to access library entry ${idLibrary} owned by user ${libraryEntry.Users_idUsers}.`
+            );
+            return res.status(403).json({ message: 'You can only access your own library entries.' });
+        }
+
+        const library = {
+            idLibrary: libraryEntry.idLibrary,
+            idUsers: libraryEntry.Users_idUsers,
+            idGames: libraryEntry.Games_idGames,
+            totalHours: libraryEntry.totalHours,
+            isFavorite: libraryEntry.isFavorite,
+            isPinned: libraryEntry.isPinned,
+            gameName: libraryEntry.gameName,
+            gameImage: libraryEntry.gameImage
+        };
+
+        return res.status(200).json({ library });
+
+    } catch (error) {
+        console.error('Error fetching library entry:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
