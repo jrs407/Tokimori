@@ -188,7 +188,7 @@ export const getNotesByLibrary = async (req: AuthenticatedRequest, res: Response
             `SELECT idNotes, library_idLibrary, title, text, colour, isFavorite, isPinned
              FROM notes
              WHERE library_idLibrary = ?
-             ORDER BY isPinned DESC, isFavorite DESC, idNotes DESC`,
+             ORDER BY isPinned DESC, title ASC`,
             [idLibrary]
         );
 
@@ -196,6 +196,110 @@ export const getNotesByLibrary = async (req: AuthenticatedRequest, res: Response
 
     } catch (error) {
         console.error('Error fetching notes:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+/**
+ * Get pinned notes for a specific library entry
+ */
+export const getPinnedNotes = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { idLibrary } = req.body as {
+            idLibrary?: number;
+        };
+
+        const authenticatedUserId = req.user?.id;
+        const isAdmin = req.user?.isAdmin;
+
+        if (!authenticatedUserId) {
+            return res.status(401).json({ message: 'User not authenticated.' });
+        }
+
+        if (!idLibrary) {
+            return res.status(400).json({ message: 'idLibrary is required.' });
+        }
+
+        const [libraryRows] = await pool.query<RowDataPacket[]>(
+            'SELECT Users_idUsers FROM library WHERE idLibrary = ?',
+            [idLibrary]
+        );
+
+        if (libraryRows.length === 0) {
+            return res.status(404).json({ message: 'Library entry not found.' });
+        }
+
+        if (libraryRows[0].Users_idUsers !== authenticatedUserId && !isAdmin) {
+            console.warn(
+                `Security: User ${authenticatedUserId} attempted to access pinned notes for library ${idLibrary} owned by user ${libraryRows[0].Users_idUsers}.`
+            );
+            return res.status(403).json({ message: 'You can only view notes from your own library.' });
+        }
+
+        const [notes] = await pool.query<RowDataPacket[]>(
+            `SELECT idNotes, library_idLibrary, title, text, colour, isFavorite, isPinned
+             FROM notes
+             WHERE library_idLibrary = ? AND isPinned = 1
+             ORDER BY title ASC`,
+            [idLibrary]
+        );
+
+        return res.status(200).json({ notes });
+
+    } catch (error) {
+        console.error('Error fetching pinned notes:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+/**
+ * Get favorite notes for a specific library entry
+ */
+export const getFavoriteNotes = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { idLibrary } = req.body as {
+            idLibrary?: number;
+        };
+
+        const authenticatedUserId = req.user?.id;
+        const isAdmin = req.user?.isAdmin;
+
+        if (!authenticatedUserId) {
+            return res.status(401).json({ message: 'User not authenticated.' });
+        }
+
+        if (!idLibrary) {
+            return res.status(400).json({ message: 'idLibrary is required.' });
+        }
+
+        const [libraryRows] = await pool.query<RowDataPacket[]>(
+            'SELECT Users_idUsers FROM library WHERE idLibrary = ?',
+            [idLibrary]
+        );
+
+        if (libraryRows.length === 0) {
+            return res.status(404).json({ message: 'Library entry not found.' });
+        }
+
+        if (libraryRows[0].Users_idUsers !== authenticatedUserId && !isAdmin) {
+            console.warn(
+                `Security: User ${authenticatedUserId} attempted to access favorite notes for library ${idLibrary} owned by user ${libraryRows[0].Users_idUsers}.`
+            );
+            return res.status(403).json({ message: 'You can only view notes from your own library.' });
+        }
+
+        const [notes] = await pool.query<RowDataPacket[]>(
+            `SELECT idNotes, library_idLibrary, title, text, colour, isFavorite, isPinned
+             FROM notes
+             WHERE library_idLibrary = ? AND isFavorite = 1
+             ORDER BY title ASC`,
+            [idLibrary]
+        );
+
+        return res.status(200).json({ notes });
+
+    } catch (error) {
+        console.error('Error fetching favorite notes:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 };
