@@ -1,8 +1,7 @@
 import type { Request, Response } from 'express';
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
+import type { RowDataPacket } from 'mysql2/promise';
 import pool from '../db';
 import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
-import { getImagePath, deleteImage } from '../middlewares/upload.middleware';
 
 /**
  * Add a game to user's library
