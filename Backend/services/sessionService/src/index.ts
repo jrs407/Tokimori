@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv'
-import objectivesRoutes from './routes/session.routes';
+import sessionRoutes from './routes/session.routes';
 
 dotenv.config();
 
@@ -11,10 +11,10 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'Objectives service is running' });
+  res.json({ status: 'Session service is running' });
 });
 
-app.use('/objectives', objectivesRoutes);
+app.use('/sessions', sessionRoutes);
 
 const PORT = process.env.PORT || 8004;
 

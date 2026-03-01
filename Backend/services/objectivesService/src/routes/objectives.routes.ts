@@ -18,13 +18,13 @@ router.post('/getObjective', authMiddleware, getObjective);
 router.post('/search', authMiddleware, searchObjectivesByTitle);
 
 // tasks routes
+router.post('/task', authMiddleware, getTaskById);
 router.post('/createTask', authMiddleware, createTask);
 router.patch('/updateTask', authMiddleware, updateTask);
 router.delete('/deleteTask', authMiddleware, deleteTask);
 router.post('/tasksByObjective', authMiddleware, getTasksByObjective);
 router.post('/tasksByObjective/incomplete', authMiddleware, getIncompleteTasksByObjective);
 router.post('/tasksByObjective/completed', authMiddleware, getCompletedTasksByObjective);
-router.post('/task', authMiddleware, getTaskById);
 router.delete('/tasksByObjective/completed', authMiddleware, deleteCompletedTasksByObjective);
 router.patch('/tasksByObjective/markCompleted', authMiddleware, markAllTasksCompletedByObjective);
 router.patch('/tasksByObjective/markIncomplete', authMiddleware, markAllTasksIncompleteByObjective);
