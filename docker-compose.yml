@@ -129,6 +129,28 @@ services:
       - tokimori-network
     restart: always
 
+  session-service:
+    container_name: tokimori-session-service
+    build:
+      context: ./Backend/services/sessionService
+      dockerfile: Dockerfile
+    ports:
+      - "8005:8005"
+    environment:
+      - NODE_ENV=development
+      - MYSQL_HOST=db
+      - MYSQL_USER=tokimori_user
+      - MYSQL_PASSWORD=tokimori_password
+      - MYSQL_DATABASE=tokimori
+      - MYSQL_PORT=3306
+      - JWT_SECRET=dev_secret
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - tokimori-network
+    restart: always
+
   db:
     image: mysql:8.0
     container_name: tokimori-db
