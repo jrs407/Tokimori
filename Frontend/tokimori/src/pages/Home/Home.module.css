@@ -24,6 +24,8 @@
   overflow-y: auto;
   padding: 40px;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  position: relative;
+  z-index: 1;
 }
 
 .mainContent h1 {
