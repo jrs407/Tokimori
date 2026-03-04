@@ -1,0 +1,60 @@
+/* Dark theme variables - matching Home */
+:root {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #2a2a3e;
+  --bg-tertiary: #16213e;
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0c0;
+  --border-color: #444;
+  --accent-color: #667eea;
+  --accent-hover: #764ba2;
+  --card-bg: #2a2a3e;
+  --card-border: #444;
+}
+
+.mainLayout {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+.mainContent {
+  flex: 1;
+  overflow: hidden;
+  padding: 40px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.contentContainer {
+  width: 80%;
+  max-width: 1400px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Page Title */
+.pageTitle {
+  font-size: 36px;
+  font-weight: 700;
+  text-align: center;
+  margin: 0 0 30px 0;
+  color: var(--text-primary);
+  text-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+  flex-shrink: 0;
+}
+
+/* Container (fallback loading state) */
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: var(--text-primary);
+}
