@@ -1,0 +1,112 @@
+/* Dark theme colors - matching Login/Register */
+:root {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #2a2a3e;
+  --bg-tertiary: #16213e;
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0c0;
+  --border-color: #444;
+  --accent-color: #667eea;
+  --accent-hover: #764ba2;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-right: 1px solid var(--border-color);
+  transition: width 0.3s ease;
+}
+
+.sidebar.collapsed {
+  width: 70px;
+}
+
+.sidebar.expanded {
+  width: 250px;
+}
+
+.sidebarContent {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* TOP SECTION */
+.topSection {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: rgba(42, 42, 62, 0.5);
+}
+
+/* MIDDLE SECTION (spacer) */
+.middleSection {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* BOTTOM SECTION */
+.bottomSection {
+  padding: 12px;
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: rgba(42, 42, 62, 0.5);
+}
+
+/* Sidebar Button */
+.sidebarBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.sidebarBtn:hover {
+  background-color: rgba(102, 126, 234, 0.1);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.sidebar.expanded .sidebarBtn {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  height: auto;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.label {
+  flex: 1;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}

@@ -32,12 +32,14 @@ export const Register = () => {
 
     try {
       await register({ email, name, password, confirmPassword });
+      console.log('Registro completado, navegando a /home');
       setEmail('');
       setName('');
       setPassword('');
       setConfirmPassword('');
-      console.log('Registro exitoso');
-      // Aquí podrías redirigir o mostrar mensaje de éxito
+      console.log('Ejecutando navigate...');
+      navigate('/home');
+      console.log('Navigate ejecutado');
     } catch (err) {
       console.error('Error de registro:', err);
     }

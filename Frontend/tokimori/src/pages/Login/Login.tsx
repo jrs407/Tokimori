@@ -25,10 +25,12 @@ export const Login = () => {
 
     try {
       await login({ email, password });
+      console.log('Login completado, navegando a /home');
       setEmail('');
       setPassword('');
-      // Aquí redirigiramos a otra página (ej: useNavigate())
-      console.log('Login exitoso');
+      console.log('Ejecutando navigate...');
+      navigate('/home');
+      console.log('Navigate ejecutado');
     } catch (err) {
       // El error se maneja en el hook, aquí solo mostramos el mensaje
       console.error('Error de login:', err);
