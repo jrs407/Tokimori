@@ -7,8 +7,8 @@ const router = Router();
 
 // library routes
 router.post('/createLibrary', authMiddleware, createLibrary);
-router.get('/libraryListByUserId', authMiddleware, getLibraryListByUserId);
-router.get('/libraryListHourByUserId', authMiddleware, getLibraryListHourByUserId);
+router.post('/libraryListByUserId', authMiddleware, getLibraryListByUserId);
+router.post('/libraryListHourByUserId', authMiddleware, getLibraryListHourByUserId);
 router.get('/usersListByGameId', getUsersListByGameId);
 router.patch('/updateLibrary', authMiddleware, updateLibrary);
 router.post('/searchGamesNotInLibrary', authMiddleware, searchGamesNotInLibrary);

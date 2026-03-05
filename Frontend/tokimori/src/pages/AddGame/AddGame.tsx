@@ -156,6 +156,7 @@ export const AddGame = () => {
                 onChange={(e) => handleSearch(e.target.value)}
                 className={styles.searchInput}
                 disabled={isLoading}
+                autoFocus
               />
               <svg
                 className={styles.searchIcon}
@@ -197,7 +198,12 @@ export const AddGame = () => {
             {!isLoading && games.length > 0 && (
               <div className={styles.gamesList}>
                 {games.map((game) => (
-                  <div key={game.idGames} className={styles.gameCard}>
+                  <div
+                    key={game.idGames}
+                    className={styles.gameCard}
+                    onClick={() => game.idGames && handleAddToLibrary(game.idGames)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     {game.img && (
                       <img src={game.img} alt={game.name} className={styles.gameImage} />
                     )}
@@ -211,7 +217,10 @@ export const AddGame = () => {
 
                     <button
                       className={styles.addButton}
-                      onClick={() => game.idGames && handleAddToLibrary(game.idGames)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        game.idGames && handleAddToLibrary(game.idGames);
+                      }}
                       disabled={addingGameId === game.idGames}
                     >
                       {addingGameId === game.idGames ? 'Agregando...' : '+ Agregar'}
