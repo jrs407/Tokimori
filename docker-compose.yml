@@ -31,6 +31,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    volumes:
+      - ./Backend/services/authenticationService/src:/app/src
     environment:
       - NODE_ENV=development
       - MYSQL_HOST=db
@@ -52,6 +54,9 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8001:8001"
+    volumes:
+      - ./Backend/services/gameService/src:/app/src
+      - ./Miscelanius/gameImage:/app/Miscelanius/gameImage
     environment:
       - NODE_ENV=development
       - MYSQL_HOST=db
@@ -60,8 +65,6 @@ services:
       - MYSQL_DATABASE=tokimori
       - MYSQL_PORT=3306
       - JWT_SECRET=dev_secret
-    volumes:
-      - ./Miscelanius/gameImage:/app/Miscelanius/gameImage
     depends_on:
       db:
         condition: service_healthy
@@ -76,6 +79,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8002:8002"
+    volumes:
+      - ./Backend/services/libraryService/src:/app/src
     environment:
       - NODE_ENV=development
       - MYSQL_HOST=db
@@ -98,6 +103,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8003:8003"
+    volumes:
+      - ./Backend/services/notesService/src:/app/src
     environment:
       - NODE_ENV=development
       - MYSQL_HOST=db
@@ -120,8 +127,9 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8004:8004"
+    volumes:
+      - ./Backend/services/objectivesService/src:/app/src
     environment:
-      - NODE_ENV=development
       - MYSQL_HOST=db
       - MYSQL_USER=tokimori_user
       - MYSQL_PASSWORD=tokimori_password
@@ -142,6 +150,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8005:8005"
+    volumes:
+      - ./Backend/services/sessionService/src:/app/src
     environment:
       - NODE_ENV=development
       - MYSQL_HOST=db

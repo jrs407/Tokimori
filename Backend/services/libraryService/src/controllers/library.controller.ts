@@ -276,7 +276,7 @@ export const searchGamesNotInLibrary = async (req: AuthenticatedRequest, res: Re
         const searchPattern = `%${searchTerm}%`;
 
         const [games] = await pool.query<RowDataPacket[]>(
-            `SELECT g.idGames, g.name, g.img, g.description, g.developer, g.publisher, g.releaseDate
+            `SELECT g.idGames, g.name, g.img
              FROM games g
              LEFT JOIN library l ON g.idGames = l.Games_idGames AND l.Users_idUsers = ?
              WHERE l.idLibrary IS NULL

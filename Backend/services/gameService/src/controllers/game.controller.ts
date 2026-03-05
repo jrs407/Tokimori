@@ -23,14 +23,22 @@ export const createGame = async (req: Request, res: Response) => {
 
     if (req.file) {
       imagePath = getImagePath(req.file.filename);
+      console.log('📷 File uploaded:', req.file.filename);
+      console.log('📍 Image path stored:', imagePath);
     } else {
-      imagePath = 'Miscelanius/gameImage/prueba.jpg';
+      imagePath = '/gameImage/prueba.jpg';
+      console.log('📷 No file uploaded, using default image');
+      console.log('📍 Image path stored:', imagePath);
     }
+
+    console.log('🎮 Creating game:', name);
 
     const [result] = await pool.execute<ResultSetHeader>(
       'INSERT INTO games (name, img) VALUES (?, ?)',
       [name, imagePath]
     );
+
+    console.log('✅ Game created with ID:', result.insertId);
 
     return res.status(201).json({
       message: 'Game created successfully.',
