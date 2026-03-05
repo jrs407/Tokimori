@@ -168,4 +168,171 @@ export const gameLibraryService = {
       throw error;
     }
   },
+
+  // Update game favorite status
+  updateGameFavorite: async (token: string, idLibrary: number, isFavorite: boolean): Promise<void> => {
+    try {
+      const response = await fetch(`${LIBRARY_API_URL}/library/updateLibrary`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          idLibrary,
+          isFavorite,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(errorData?.message || 'Error updating favorite status');
+      }
+
+      console.log(`⭐ Game ${idLibrary} favorite status updated to ${isFavorite}`);
+    } catch (error) {
+      console.error('❌ updateGameFavorite error:', error);
+      throw error;
+    }
+  },
+
+  // Update game pinned status
+  updateGamePinned: async (token: string, idLibrary: number, isPinned: boolean): Promise<void> => {
+    try {
+      const response = await fetch(`${LIBRARY_API_URL}/library/updateLibrary`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          idLibrary,
+          isPinned,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(errorData?.message || 'Error updating pinned status');
+      }
+
+      console.log(`📌 Game ${idLibrary} pinned status updated to ${isPinned}`);
+    } catch (error) {
+      console.error('❌ updateGamePinned error:', error);
+      throw error;
+    }
+  },
+
+  // Delete game from library
+  deleteFromLibrary: async (token: string, idLibrary: number): Promise<void> => {
+    try {
+      const response = await fetch(`${LIBRARY_API_URL}/library/deleteLibrary`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          idLibrary,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(errorData?.message || 'Error deleting game from library');
+      }
+
+      console.log(`🗑️ Game ${idLibrary} deleted from library`);
+    } catch (error) {
+      console.error('❌ deleteFromLibrary error:', error);
+      throw error;
+    }
+  },
+
+  // Get favorite games
+  getFavoriteGames: async (token: string, userId: string): Promise<Game[]> => {
+    try {
+      const response = await fetch(`${LIBRARY_API_URL}/library/favoriteGames`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          idUsers: parseInt(userId),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(errorData?.message || 'Error fetching favorite games');
+      }
+
+      const data = (await response.json()) as { games?: Game[] };
+      const games = data.games || [];
+      console.log(`⭐ Loaded ${games.length} favorite games`);
+      return games.map(normalizeGame);
+    } catch (error) {
+      console.error('❌ getFavoriteGames error:', error);
+      throw error;
+    }
+  },
+
+  // Get pinned games
+  getPinnedGames: async (token: string, userId: string): Promise<Game[]> => {
+    try {
+      const response = await fetch(`${LIBRARY_API_URL}/library/pinnedGames`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          idUsers: parseInt(userId),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(errorData?.message || 'Error fetching pinned games');
+      }
+
+      const data = (await response.json()) as { games?: Game[] };
+      const games = data.games || [];
+      console.log(`📌 Loaded ${games.length} pinned games`);
+      return games.map(normalizeGame);
+    } catch (error) {
+      console.error('❌ getPinnedGames error:', error);
+      throw error;
+    }
+  },
+
+  // Get library sorted by hours
+  getLibraryByHours: async (token: string, userId: string): Promise<Game[]> => {
+    try {
+      const response = await fetch(`${LIBRARY_API_URL}/library/libraryListHourByUserId`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          idUsers: parseInt(userId),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.text().catch(() => null)) as string | null;
+        throw new Error(errorData || 'Error fetching library by hours');
+      }
+
+      const data = (await response.json()) as { library?: Game[]; games?: Game[] };
+      const games = data.library || data.games || [];
+      console.log(`⏱️ Loaded ${games.length} games sorted by hours`);
+      return games.map(normalizeGame);
+    } catch (error) {
+      console.error('❌ getLibraryByHours error:', error);
+      throw error;
+    }
+  },
 };

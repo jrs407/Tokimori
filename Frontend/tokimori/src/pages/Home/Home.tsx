@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Sidebar } from '../../components/Sidebar';
@@ -12,6 +12,10 @@ export const Home = () => {
   const [games, setGames] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState<number | null>(null);
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [currentFilter, setCurrentFilter] = useState<'all' | 'favorites' | 'pinned' | 'hours'>('all');
+  const filterMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Redirige a login si no está autenticado
@@ -20,10 +24,27 @@ export const Home = () => {
     }
   }, [isAuthenticated, navigate]);
 
+  // Cerrar menú de filtros al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
+        setShowFilterMenu(false);
+      }
+    };
+
+    if (showFilterMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showFilterMenu]);
+
   // Cargar la biblioteca del usuario
   useEffect(() => {
     if (isAuthenticated && user) {
-      const loadUserLibrary = async () => {
+      const loadLibraryData = async () => {
         try {
           setIsLoading(true);
           setError(null);
@@ -31,7 +52,25 @@ export const Home = () => {
           if (!token) {
             throw new Error('No se encontró el token de autenticación');
           }
-          const userGames = await gameLibraryService.getUserLibrary(token, user.id.toString());
+
+          let userGames;
+          
+          switch (currentFilter) {
+            case 'favorites':
+              userGames = await gameLibraryService.getFavoriteGames(token, user.id.toString());
+              break;
+            case 'pinned':
+              userGames = await gameLibraryService.getPinnedGames(token, user.id.toString());
+              break;
+            case 'hours':
+              userGames = await gameLibraryService.getLibraryByHours(token, user.id.toString());
+              break;
+            case 'all':
+            default:
+              userGames = await gameLibraryService.getUserLibrary(token, user.id.toString());
+              break;
+          }
+          
           setGames(userGames);
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Error al cargar la biblioteca');
@@ -41,9 +80,9 @@ export const Home = () => {
         }
       };
 
-      loadUserLibrary();
+      loadLibraryData();
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, currentFilter]);
 
   if (!isAuthenticated || !user) {
     return (
@@ -83,6 +122,100 @@ export const Home = () => {
     game.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleTogglePinned = async (game: any) => {
+    const token = localStorage.getItem('auth_token');
+    if (!token || !game.idLibrary) return;
+
+    try {
+      setIsUpdating(game.idLibrary);
+      const newPinnedStatus = !game.isPinned;
+      
+      // Actualizar el estado isPinned
+      const updatedGames = games.map(g =>
+        g.idLibrary === game.idLibrary
+          ? { ...g, isPinned: newPinnedStatus }
+          : g
+      );
+      
+      // Reordenar inmediatamente
+      const reorderedGames = updatedGames.sort((a, b) => {
+        if (a.isPinned !== b.isPinned) {
+          return b.isPinned ? 1 : -1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+      
+      setGames(reorderedGames);
+      await gameLibraryService.updateGamePinned(token, game.idLibrary, newPinnedStatus);
+    } catch (err) {
+      // Revert optimistic update on error
+      setGames(games.map(g =>
+        g.idLibrary === game.idLibrary
+          ? { ...g, isPinned: game.isPinned }
+          : g
+      ));
+      console.error('Error toggling pinned status:', err);
+      alert('Error al actualizar el estado de pinnear');
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const handleToggleFavorite = async (game: any) => {
+    const token = localStorage.getItem('auth_token');
+    if (!token || !game.idLibrary) return;
+
+    try {
+      setIsUpdating(game.idLibrary);
+      const newFavoriteStatus = !game.isFavorite;
+      
+      // Optimistic update
+      setGames(games.map(g =>
+        g.idLibrary === game.idLibrary
+          ? { ...g, isFavorite: newFavoriteStatus }
+          : g
+      ));
+
+      await gameLibraryService.updateGameFavorite(token, game.idLibrary, newFavoriteStatus);
+    } catch (err) {
+      // Revert optimistic update on error
+      setGames(games.map(g =>
+        g.idLibrary === game.idLibrary
+          ? { ...g, isFavorite: game.isFavorite }
+          : g
+      ));
+      console.error('Error toggling favorite status:', err);
+      alert('Error al actualizar el estado de favorito');
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const handleDeleteGame = async (game: any) => {
+    const token = localStorage.getItem('auth_token');
+    if (!token || !game.idLibrary) return;
+
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar "${game.name}" de tu biblioteca?`)) {
+      return;
+    }
+
+    try {
+      setIsUpdating(game.idLibrary);
+      
+      // Optimistic update
+      setGames(games.filter(g => g.idLibrary !== game.idLibrary));
+
+      await gameLibraryService.deleteFromLibrary(token, game.idLibrary);
+    } catch (err) {
+      // Revert optimistic update on error
+      setGames([...games, game]);
+      console.error('Error deleting game:', err);
+      alert('Error al eliminar el juego de la biblioteca');
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
   return (
     <div className={styles.mainLayout}>
       <Sidebar />
@@ -99,9 +232,55 @@ export const Home = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <button className={styles.filterBtn} title="Filtros">
-              🔍
-            </button>
+            <div style={{ position: 'relative' }} ref={filterMenuRef}>
+              <button 
+                className={styles.filterBtn} 
+                title="Filtros"
+                onClick={() => setShowFilterMenu(!showFilterMenu)}
+              >
+                🔍
+              </button>
+              {showFilterMenu && (
+                <div className={styles.filterMenu}>
+                  <button 
+                    className={`${styles.filterOption} ${currentFilter === 'all' ? styles.active : ''}`}
+                    onClick={() => {
+                      setCurrentFilter('all');
+                      setShowFilterMenu(false);
+                    }}
+                  >
+                    Ver todos
+                  </button>
+                  <button 
+                    className={`${styles.filterOption} ${currentFilter === 'favorites' ? styles.active : ''}`}
+                    onClick={() => {
+                      setCurrentFilter('favorites');
+                      setShowFilterMenu(false);
+                    }}
+                  >
+                    ⭐ Favoritos
+                  </button>
+                  <button 
+                    className={`${styles.filterOption} ${currentFilter === 'pinned' ? styles.active : ''}`}
+                    onClick={() => {
+                      setCurrentFilter('pinned');
+                      setShowFilterMenu(false);
+                    }}
+                  >
+                    📌 Pinneados
+                  </button>
+                  <button 
+                    className={`${styles.filterOption} ${currentFilter === 'hours' ? styles.active : ''}`}
+                    onClick={() => {
+                      setCurrentFilter('hours');
+                      setShowFilterMenu(false);
+                    }}
+                  >
+                    ⏱️ Por horas
+                  </button>
+                </div>
+              )}
+            </div>
             <button className={styles.createBtn} onClick={() => navigate('/create')}>
               Añadir juego
             </button>
@@ -109,8 +288,18 @@ export const Home = () => {
 
           <div className={styles.gameList}>
           {filteredGames.length > 0 ? (
-            filteredGames.map(game => (
-              <div key={game.idGames || game.id} className={styles.gameCard}>
+            filteredGames.map((game, index) => {
+              let cardClassName = styles.gameCard;
+              if (game.isPinned && game.isFavorite) {
+                cardClassName = `${styles.gameCard} ${styles.pinnedFavorite}`;
+              } else if (game.isPinned) {
+                cardClassName = `${styles.gameCard} ${styles.pinned}`;
+              } else if (game.isFavorite) {
+                cardClassName = `${styles.gameCard} ${styles.favorite}`;
+              }
+              
+              return (
+              <div key={game.idGames || game.id} className={cardClassName}>
                 <img 
                   src={game.img || '/gameImage/prueba.jpg'} 
                   alt={game.name}
@@ -121,28 +310,44 @@ export const Home = () => {
                 <div className={styles.spacer}></div>
                 <div className={styles.gameActions}>
                   <button 
-                    className={`${styles.iconBtn}`}
-                    title="Pinnear"
+                    className={`${styles.iconBtn} ${game.isPinned ? styles.active : ''}`}
+                    title={game.isPinned ? 'Despinnear' : 'Pinnear'}
+                    onClick={() => handleTogglePinned(game)}
+                    disabled={isUpdating === game.idLibrary}
                   >
                     📌
                   </button>
                   <button 
-                    className={`${styles.iconBtn}`}
-                    title="Añadir a favoritos"
+                    className={`${styles.iconBtn} ${game.isFavorite ? styles.active : ''}`}
+                    title={game.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+                    onClick={() => handleToggleFavorite(game)}
+                    disabled={isUpdating === game.idLibrary}
                   >
                     ⭐
                   </button>
                   <button 
                     className={styles.deleteBtn}
                     title="Eliminar"
+                    onClick={() => handleDeleteGame(game)}
+                    disabled={isUpdating === game.idLibrary}
                   >
                     🗑️
                   </button>
                 </div>
               </div>
-            ))
+            );
+            })
           ) : (
-            <p>No hay juegos en tu biblioteca. ¡Añade algunos!</p>
+            <div className={styles.emptyState}>
+              <p>
+                {searchTerm
+                  ? 'No se encontraron juegos con ese nombre'
+                  : 'No hay juegos en tu biblioteca'}
+              </p>
+              <p style={{ fontSize: '14px', marginTop: '10px' }}>
+                ¡Añade juegos nuevos para comenzar!
+              </p>
+            </div>
           )}
           </div>
         </div>

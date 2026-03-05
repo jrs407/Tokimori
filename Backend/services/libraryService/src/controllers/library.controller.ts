@@ -377,7 +377,7 @@ export const getFavoriteGames = async (req: AuthenticatedRequest, res: Response)
              FROM library l
              JOIN games g ON l.Games_idGames = g.idGames
              WHERE l.Users_idUsers = ? AND l.isFavorite = 1
-             ORDER BY g.name ASC`,
+             ORDER BY l.isPinned DESC, g.name ASC`,
             [idUsers]
         );
 
@@ -421,7 +421,7 @@ export const getPinnedGames = async (req: AuthenticatedRequest, res: Response) =
              FROM library l
              JOIN games g ON l.Games_idGames = g.idGames
              WHERE l.Users_idUsers = ? AND l.isPinned = 1
-             ORDER BY g.name ASC`,
+             ORDER BY l.isPinned DESC, g.name ASC`,
             [idUsers]
         );
 
