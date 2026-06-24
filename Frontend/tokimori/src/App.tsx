@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Login } from './pages/Login'
 import { Register } from './pages/Register'
 import { Home } from './pages/Home'
@@ -57,6 +57,32 @@ const GlobalTimerIndicator = () => {
     }
   }, [])
 
+  /* ── Drag state ── */
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const dragging = useRef(false)
+  const dragOffset = useRef({ x: 0, y: 0 })
+  const didDrag = useRef(false)
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).tagName === 'BUTTON') return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    dragging.current = true
+    didDrag.current = false
+    const rect = e.currentTarget.getBoundingClientRect()
+    dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) return
+    didDrag.current = true
+    const el = e.currentTarget
+    const nx = Math.max(0, Math.min(e.clientX - dragOffset.current.x, window.innerWidth - el.offsetWidth))
+    const ny = Math.max(0, Math.min(e.clientY - dragOffset.current.y, window.innerHeight - el.offsetHeight))
+    setPos({ x: nx, y: ny })
+  }
+
+  const onPointerUp = () => { dragging.current = false }
+
   const isAuthPage = location.pathname === '/login' || location.pathname === '/register'
   if (!timer || isAuthPage) return null
 
@@ -90,28 +116,35 @@ const GlobalTimerIndicator = () => {
       },
     })
 
+  const posStyle: React.CSSProperties = pos
+    ? { top: pos.y, left: pos.x }
+    : { bottom: 28, right: 28 }
+
   return (
     <div
-      onClick={goToSessions}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onClick={() => { if (!didDrag.current) goToSessions() }}
       style={{
         position: 'fixed',
-        bottom: 28,
-        right: 28,
+        ...posStyle,
         zIndex: 9999,
         background: '#1e1e35',
         border: `2px solid ${accentColor}`,
         borderRadius: 14,
         padding: '12px 16px',
-        cursor: 'pointer',
+        cursor: 'grab',
         minWidth: 190,
         boxShadow: `0 8px 32px ${shadowColor}, 0 2px 8px rgba(0,0,0,0.4)`,
         userSelect: 'none',
+        touchAction: 'none',
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
-        transition: 'box-shadow 0.2s, border-color 0.2s',
+        transition: pos ? 'box-shadow 0.2s, border-color 0.2s' : 'box-shadow 0.2s, border-color 0.2s',
       }}
-      title="Ir a la sesión activa"
+      title="Arrastra para mover · Clic para ir a la sesión"
     >
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
