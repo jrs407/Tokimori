@@ -19,7 +19,7 @@ export const createItem = async (req: Request, res: Response) => {
     if (req.file) {
       imagePath = getImagePath(req.file.filename);
     } else {
-      imagePath = '/itemImage/prueba.jpg';
+      imagePath = '/gameImage/prueba.jpg';
     }
 
     const [result] = await pool.execute<ResultSetHeader>(

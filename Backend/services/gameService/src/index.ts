@@ -12,7 +12,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.use('/Miscelanius/itemImage', express.static(path.join(__dirname, '../..', 'Miscelanius/itemImage')));
+app.use('/Miscelanius/gameImage', express.static(path.join(__dirname, '../..', 'Miscelanius/gameImage')));
 
 app.get('/health', (req, res) => {
   res.json({ status: 'Item service is running' });

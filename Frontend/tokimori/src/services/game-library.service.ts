@@ -1,7 +1,7 @@
 const ITEM_API_URL = 'http://localhost:8001';
 const COLLECTION_API_URL = 'http://localhost:8002';
 
-interface Item {
+export interface Item {
   idGames?: number;
   name: string;
   img?: string;

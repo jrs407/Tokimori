@@ -2,7 +2,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
-const uploadDir = path.resolve(process.cwd(), 'Miscelanius/itemImage');
+const uploadDir = path.resolve(process.cwd(), 'Miscelanius/gameImage');
 
 console.log('📁 Upload directory:', uploadDir);
 
@@ -48,7 +48,7 @@ export const uploadItemImage = multer({
 });
 
 export const getImagePath = (filename: string): string => {
-  const imagePath = `/itemImage/${filename}`;
+  const imagePath = `/gameImage/${filename}`;
   console.log('🔗 Generated image path:', imagePath);
   return imagePath;
 };
