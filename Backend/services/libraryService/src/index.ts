@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import multer from 'multer';
-import libraryRoutes from './routes/library.routes';
+import collectionRoutes from './routes/library.routes';
 
 dotenv.config();
 
@@ -11,12 +11,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-
 app.get('/health', (req, res) => {
-  res.json({ status: 'Library service is running' });
+  res.json({ status: 'Collection service is running' });
 });
 
-app.use('/library', libraryRoutes);
+app.use('/collection', collectionRoutes);
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (err instanceof Error) {
@@ -42,7 +41,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 const PORT = process.env.PORT || 8002;
 
 app.listen(PORT, () => {
-  console.log(`Library service running on port ${PORT}`);
+  console.log(`Collection service running on port ${PORT}`);
 });
 
 export default app;

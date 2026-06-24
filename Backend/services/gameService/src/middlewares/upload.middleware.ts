@@ -2,7 +2,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
-const uploadDir = path.resolve(process.cwd(), 'Miscelanius/gameImage');
+const uploadDir = path.resolve(process.cwd(), 'Miscelanius/itemImage');
 
 console.log('📁 Upload directory:', uploadDir);
 
@@ -29,7 +29,7 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-  
+
   if (allowedMimes.includes(file.mimetype)) {
     console.log('✅ File type accepted:', file.mimetype);
     cb(null, true);
@@ -39,7 +39,7 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   }
 };
 
-export const uploadGameImage = multer({
+export const uploadItemImage = multer({
   storage,
   fileFilter,
   limits: {
@@ -48,7 +48,7 @@ export const uploadGameImage = multer({
 });
 
 export const getImagePath = (filename: string): string => {
-  const imagePath = `/gameImage/${filename}`;
+  const imagePath = `/itemImage/${filename}`;
   console.log('🔗 Generated image path:', imagePath);
   return imagePath;
 };

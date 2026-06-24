@@ -1,21 +1,31 @@
 import { Router } from 'express';
-import { createLibrary, getLibraryListByUserId, getLibraryListHourByUserId, getUsersListByGameId, updateLibrary, searchGamesNotInLibrary, searchGamesInLibrary, getFavoriteGames, getPinnedGames, deleteLibrary, getLibrary } from '../controllers/library.controller';
+import {
+  createCollection,
+  getCollectionListByUserId,
+  getCollectionListHourByUserId,
+  getUsersListByItemId,
+  updateCollection,
+  searchItemsNotInCollection,
+  searchItemsInCollection,
+  getFavoriteItems,
+  getPinnedItems,
+  getCollection,
+  deleteCollection,
+} from '../controllers/library.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
-import { adminMiddleware } from '../middlewares/adminMiddleware';
 
 const router = Router();
 
-// library routes
-router.post('/createLibrary', authMiddleware, createLibrary);
-router.post('/libraryListByUserId', authMiddleware, getLibraryListByUserId);
-router.post('/libraryListHourByUserId', authMiddleware, getLibraryListHourByUserId);
-router.get('/usersListByGameId', getUsersListByGameId);
-router.patch('/updateLibrary', authMiddleware, updateLibrary);
-router.post('/searchGamesNotInLibrary', authMiddleware, searchGamesNotInLibrary);
-router.post('/searchGamesInLibrary', authMiddleware, searchGamesInLibrary);
-router.post('/favoriteGames', authMiddleware, getFavoriteGames);
-router.post('/pinnedGames', authMiddleware, getPinnedGames);
-router.post('/getLibrary', authMiddleware, getLibrary);
-router.delete('/deleteLibrary', authMiddleware, deleteLibrary);
+router.post('/createCollection', authMiddleware, createCollection);
+router.post('/collectionListByUserId', authMiddleware, getCollectionListByUserId);
+router.post('/collectionListHourByUserId', authMiddleware, getCollectionListHourByUserId);
+router.get('/usersListByItemId', getUsersListByItemId);
+router.patch('/updateCollection', authMiddleware, updateCollection);
+router.post('/searchItemsNotInCollection', authMiddleware, searchItemsNotInCollection);
+router.post('/searchItemsInCollection', authMiddleware, searchItemsInCollection);
+router.post('/favoriteItems', authMiddleware, getFavoriteItems);
+router.post('/pinnedItems', authMiddleware, getPinnedItems);
+router.post('/getCollection', authMiddleware, getCollection);
+router.delete('/deleteCollection', authMiddleware, deleteCollection);
 
 export default router;

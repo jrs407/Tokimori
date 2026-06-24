@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import multer from 'multer';
-import gameRoutes from './routes/game.routes';
+import itemRoutes from './routes/game.routes';
 
 dotenv.config();
 
@@ -12,14 +12,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-
-app.use('/Miscelanius/gameImage', express.static(path.join(__dirname, '../..', 'Miscelanius/gameImage')));
+app.use('/Miscelanius/itemImage', express.static(path.join(__dirname, '../..', 'Miscelanius/itemImage')));
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'Game service is running' });
+  res.json({ status: 'Item service is running' });
 });
 
-app.use('/games', gameRoutes);
+app.use('/items', itemRoutes);
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (err instanceof Error) {
@@ -45,7 +44,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 const PORT = process.env.PORT || 8001;
 
 app.listen(PORT, () => {
-  console.log(`Game service running on port ${PORT}`);
+  console.log(`Item service running on port ${PORT}`);
 });
 
 export default app;

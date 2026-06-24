@@ -2,32 +2,30 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Sidebar } from '../../components/Sidebar';
-import { CreateGameModal } from '../../components/CreateGameModal';
-import { gameLibraryService } from '../../services/game-library.service';
-import { authService } from '../../services/auth.service';
+import { CreateItemModal } from '../../components/CreateGameModal';
+import { itemCollectionService } from '../../services/game-library.service';
 import styles from './AddGame.module.css';
 
-interface Game {
+interface Item {
   idGames?: number;
   name: string;
   img?: string;
 }
 
-export const AddGame = () => {
+export const AddItem = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const token = localStorage.getItem('auth_token') || '';
 
-  const [games, setGames] = useState<Game[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [addingGameId, setAddingGameId] = useState<number | null>(null);
+  const [addingItemId, setAddingItemId] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Fetch games not in library
-  const fetchGamesNotInLibrary = useCallback(
+  const fetchItemsNotInCollection = useCallback(
     async (search: string = '') => {
       if (!user) return;
 
@@ -36,15 +34,15 @@ export const AddGame = () => {
       setSuccessMessage('');
 
       try {
-        const result = await gameLibraryService.searchGamesNotInLibrary(
+        const result = await itemCollectionService.searchItemsNotInCollection(
           token,
           user.id,
           search || '%'
         );
-        setGames(result);
+        setItems(result);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error al cargar los juegos');
-        setGames([]);
+        setError(err instanceof Error ? err.message : 'Error al cargar los elementos');
+        setItems([]);
       } finally {
         setIsLoading(false);
       }
@@ -52,76 +50,58 @@ export const AddGame = () => {
     [user, token]
   );
 
-  // Initial load
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
 
-    fetchGamesNotInLibrary();
-  }, [isAuthenticated, navigate, fetchGamesNotInLibrary]);
+    fetchItemsNotInCollection();
+  }, [isAuthenticated, navigate, fetchItemsNotInCollection]);
 
-  // Handle search
   const handleSearch = (value: string) => {
     setSearchTerm(value);
   };
 
-  // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchGamesNotInLibrary(searchTerm);
+      fetchItemsNotInCollection(searchTerm);
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, fetchGamesNotInLibrary]);
+  }, [searchTerm, fetchItemsNotInCollection]);
 
-  // Add game to library
-  const handleAddToLibrary = async (gameId: number) => {
+  const handleAddToCollection = async (itemId: number) => {
     if (!user) return;
 
-    setAddingGameId(gameId);
+    setAddingItemId(itemId);
     setError('');
 
     try {
-      await gameLibraryService.addToLibrary(token, user.id, gameId);
-      setSuccessMessage('Juego agregado a la biblioteca correctamente');
-      
-      // Remove from list
-      setGames(games.filter(game => game.idGames !== gameId));
-      
-      // Clear success message after 3 seconds
+      await itemCollectionService.addToCollection(token, user.id, itemId);
+      setSuccessMessage('Elemento agregado a la colección correctamente');
+
+      setItems(items.filter(item => item.idGames !== itemId));
+
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al agregar el juego');
+      setError(err instanceof Error ? err.message : 'Error al agregar el elemento');
     } finally {
-      setAddingGameId(null);
+      setAddingItemId(null);
     }
   };
 
-  // Handle create game
-  const handleCreateGame = async (name: string, image?: File) => {
+  const handleCreateItem = async (name: string, image?: File) => {
     setError('');
 
     try {
-      console.log('🎮 Creating game:', name);
-      if (image) {
-        console.log('📷 Image file:', image.name, '(' + (image.size / 1024).toFixed(2) + ' KB)');
-      } else {
-        console.log('📷 No image provided');
-      }
+      await itemCollectionService.createItem(token, name, image);
+      setSuccessMessage('Elemento creado correctamente');
 
-      await gameLibraryService.createGame(token, name, image);
-      console.log('✅ Game created successfully');
-      setSuccessMessage('Juego creado correctamente');
-      
-      // Refresh the list
-      await fetchGamesNotInLibrary(searchTerm);
-      
-      // Clear success message after 3 seconds
+      await fetchItemsNotInCollection(searchTerm);
+
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
-      console.error('❌ Error:', err);
       throw err;
     }
   };
@@ -137,21 +117,19 @@ export const AddGame = () => {
   return (
     <div className={styles.mainLayout}>
       <Sidebar />
-      
+
       <div className={styles.mainContent}>
         <div className={styles.contentContainer}>
-          <h1 className={styles.pageTitle}>Añadir Juego</h1>
+          <h1 className={styles.pageTitle}>Añadir Elemento</h1>
 
-          {/* Messages */}
           {error && <div className={styles.errorMessage}>{error}</div>}
           {successMessage && <div className={styles.successMessage}>{successMessage}</div>}
 
-          {/* Search and Create Button */}
           <div className={styles.controlsSection}>
             <div className={styles.searchContainer}>
               <input
                 type="text"
-                placeholder="Buscar juego..."
+                placeholder="Buscar elemento..."
                 value={searchTerm}
                 onChange={(e) => handleSearch(e.target.value)}
                 className={styles.searchInput}
@@ -174,20 +152,19 @@ export const AddGame = () => {
               onClick={() => setIsModalOpen(true)}
               disabled={isLoading}
             >
-              + Crear Juego
+              + Crear Elemento
             </button>
           </div>
 
-          {/* Games List */}
           <div className={styles.gamesSection}>
-            {isLoading && <div className={styles.loadingMessage}>Cargando juegos...</div>}
-            
-            {!isLoading && games.length === 0 && (
+            {isLoading && <div className={styles.loadingMessage}>Cargando elementos...</div>}
+
+            {!isLoading && items.length === 0 && (
               <div className={styles.emptyState}>
                 <p>
                   {searchTerm
-                    ? 'No se encontraron juegos con ese nombre'
-                    : 'Todos tus juegos están en la biblioteca'}
+                    ? 'No se encontraron elementos con ese nombre'
+                    : 'Todos tus elementos están en la colección'}
                 </p>
                 <p style={{ fontSize: '14px', marginTop: '10px' }}>
                   ¡Crea uno nuevo o busca otro!
@@ -195,22 +172,22 @@ export const AddGame = () => {
               </div>
             )}
 
-            {!isLoading && games.length > 0 && (
+            {!isLoading && items.length > 0 && (
               <div className={styles.gamesList}>
-                {games.map((game) => (
+                {items.map((item) => (
                   <div
-                    key={game.idGames}
+                    key={item.idGames}
                     className={styles.gameCard}
-                    onClick={() => game.idGames && handleAddToLibrary(game.idGames)}
+                    onClick={() => item.idGames && handleAddToCollection(item.idGames)}
                     style={{ cursor: 'pointer' }}
                   >
-                    {game.img && (
-                      <img src={game.img} alt={game.name} className={styles.gameImage} />
+                    {item.img && (
+                      <img src={item.img} alt={item.name} className={styles.gameImage} />
                     )}
-                    {!game.img && <div className={styles.gameImagePlaceholder}>No imagen</div>}
-                    
+                    {!item.img && <div className={styles.gameImagePlaceholder}>Sin imagen</div>}
+
                     <div className={styles.gameInfo}>
-                      <h3 className={styles.gameName}>{game.name}</h3>
+                      <h3 className={styles.gameName}>{item.name}</h3>
                     </div>
 
                     <div className={styles.spacer}></div>
@@ -219,11 +196,11 @@ export const AddGame = () => {
                       className={styles.addButton}
                       onClick={(e) => {
                         e.stopPropagation();
-                        game.idGames && handleAddToLibrary(game.idGames);
+                        item.idGames && handleAddToCollection(item.idGames);
                       }}
-                      disabled={addingGameId === game.idGames}
+                      disabled={addingItemId === item.idGames}
                     >
-                      {addingGameId === game.idGames ? 'Agregando...' : '+ Agregar'}
+                      {addingItemId === item.idGames ? 'Agregando...' : '+ Agregar'}
                     </button>
                   </div>
                 ))}
@@ -233,11 +210,10 @@ export const AddGame = () => {
         </div>
       </div>
 
-      {/* Create Game Modal */}
-      <CreateGameModal
+      <CreateItemModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSubmit={handleCreateGame}
+        onSubmit={handleCreateItem}
         isLoading={isLoading}
       />
     </div>

@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import styles from './CreateGameModal.module.css';
 
-interface CreateGameModalProps {
+interface CreateItemModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (name: string, image?: File) => Promise<void>;
   isLoading: boolean;
 }
 
-export const CreateGameModal = ({ isOpen, onClose, onSubmit, isLoading }: CreateGameModalProps) => {
-  const [gameName, setGameName] = useState('');
+export const CreateItemModal = ({ isOpen, onClose, onSubmit, isLoading }: CreateItemModalProps) => {
+  const [itemName, setItemName] = useState('');
   const [selectedImage, setSelectedImage] = useState<File | undefined>();
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [error, setError] = useState('');
@@ -30,19 +30,19 @@ export const CreateGameModal = ({ isOpen, onClose, onSubmit, isLoading }: Create
     e.preventDefault();
     setError('');
 
-    if (!gameName.trim()) {
-      setError('El nombre del juego es requerido');
+    if (!itemName.trim()) {
+      setError('El nombre del elemento es requerido');
       return;
     }
 
     try {
-      await onSubmit(gameName, selectedImage);
-      setGameName('');
+      await onSubmit(itemName, selectedImage);
+      setItemName('');
       setSelectedImage(undefined);
       setPreviewUrl('');
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al crear el juego');
+      setError(err instanceof Error ? err.message : 'Error al crear el elemento');
     }
   };
 
@@ -52,7 +52,7 @@ export const CreateGameModal = ({ isOpen, onClose, onSubmit, isLoading }: Create
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
-          <h2 className={styles.modalTitle}>Crear Nuevo Juego</h2>
+          <h2 className={styles.modalTitle}>Crear Nuevo Elemento</h2>
           <button
             className={styles.closeButton}
             onClick={onClose}
@@ -65,26 +65,26 @@ export const CreateGameModal = ({ isOpen, onClose, onSubmit, isLoading }: Create
 
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.formGroup}>
-            <label htmlFor="gameName" className={styles.label}>
-              Nombre del Juego *
+            <label htmlFor="itemName" className={styles.label}>
+              Nombre del Elemento *
             </label>
             <input
-              id="gameName"
+              id="itemName"
               type="text"
-              value={gameName}
-              onChange={(e) => setGameName(e.target.value)}
-              placeholder="Ingrese el nombre del juego"
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+              placeholder="Ingrese el nombre del elemento"
               className={styles.input}
               disabled={isLoading}
             />
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="gameImage" className={styles.label}>
-              Imagen del Juego
+            <label htmlFor="itemImage" className={styles.label}>
+              Imagen del Elemento
             </label>
             <input
-              id="gameImage"
+              id="itemImage"
               type="file"
               accept="image/*"
               onChange={handleImageChange}
@@ -114,7 +114,7 @@ export const CreateGameModal = ({ isOpen, onClose, onSubmit, isLoading }: Create
               className={styles.submitButton}
               disabled={isLoading}
             >
-              {isLoading ? 'Creando...' : 'Crear Juego'}
+              {isLoading ? 'Creando...' : 'Crear Elemento'}
             </button>
           </div>
         </form>

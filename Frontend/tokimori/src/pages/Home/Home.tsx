@@ -2,14 +2,14 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Sidebar } from '../../components/Sidebar';
-import { gameLibraryService } from '../../services/game-library.service';
+import { itemCollectionService } from '../../services/game-library.service';
 import styles from './Home.module.css';
 
 export const Home = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
-  const [games, setGames] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState<number | null>(null);
@@ -18,13 +18,11 @@ export const Home = () => {
   const filterMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Redirige a login si no está autenticado
     if (!isAuthenticated) {
       navigate('/login');
     }
   }, [isAuthenticated, navigate]);
 
-  // Cerrar menú de filtros al hacer click fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
@@ -41,10 +39,9 @@ export const Home = () => {
     };
   }, [showFilterMenu]);
 
-  // Cargar la biblioteca del usuario
   useEffect(() => {
     if (isAuthenticated && user) {
-      const loadLibraryData = async () => {
+      const loadCollectionData = async () => {
         try {
           setIsLoading(true);
           setError(null);
@@ -53,34 +50,34 @@ export const Home = () => {
             throw new Error('No se encontró el token de autenticación');
           }
 
-          let userGames;
-          
+          let userItems;
+
           switch (currentFilter) {
             case 'favorites':
-              userGames = await gameLibraryService.getFavoriteGames(token, user.id.toString());
+              userItems = await itemCollectionService.getFavoriteItems(token, user.id.toString());
               break;
             case 'pinned':
-              userGames = await gameLibraryService.getPinnedGames(token, user.id.toString());
+              userItems = await itemCollectionService.getPinnedItems(token, user.id.toString());
               break;
             case 'hours':
-              userGames = await gameLibraryService.getLibraryByHours(token, user.id.toString());
+              userItems = await itemCollectionService.getCollectionByHours(token, user.id.toString());
               break;
             case 'all':
             default:
-              userGames = await gameLibraryService.getUserLibrary(token, user.id.toString());
+              userItems = await itemCollectionService.getUserCollection(token, user.id.toString());
               break;
           }
-          
-          setGames(userGames);
+
+          setItems(userItems);
         } catch (err) {
-          setError(err instanceof Error ? err.message : 'Error al cargar la biblioteca');
-          console.error('Error loading user library:', err);
+          setError(err instanceof Error ? err.message : 'Error al cargar la colección');
+          console.error('Error loading user collection:', err);
         } finally {
           setIsLoading(false);
         }
       };
 
-      loadLibraryData();
+      loadCollectionData();
     }
   }, [isAuthenticated, user, currentFilter]);
 
@@ -98,7 +95,7 @@ export const Home = () => {
         <Sidebar />
         <div className={styles.mainContent}>
           <div className={styles.contentContainer}>
-            <p>Cargando tu biblioteca...</p>
+            <p>Cargando tu colección...</p>
           </div>
         </div>
       </div>
@@ -118,41 +115,34 @@ export const Home = () => {
     );
   }
 
-  const filteredGames = games.filter(game =>
-    game.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredItems = items.filter(item =>
+    item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleTogglePinned = async (game: any) => {
+  const handleTogglePinned = async (item: any) => {
     const token = localStorage.getItem('auth_token');
-    if (!token || !game.idLibrary) return;
+    if (!token || !item.idLibrary) return;
 
     try {
-      setIsUpdating(game.idLibrary);
-      const newPinnedStatus = !game.isPinned;
-      
-      // Actualizar el estado isPinned
-      const updatedGames = games.map(g =>
-        g.idLibrary === game.idLibrary
-          ? { ...g, isPinned: newPinnedStatus }
-          : g
+      setIsUpdating(item.idLibrary);
+      const newPinnedStatus = !item.isPinned;
+
+      const updatedItems = items.map(i =>
+        i.idLibrary === item.idLibrary ? { ...i, isPinned: newPinnedStatus } : i
       );
-      
-      // Reordenar inmediatamente
-      const reorderedGames = updatedGames.sort((a, b) => {
+
+      const reorderedItems = updatedItems.sort((a, b) => {
         if (a.isPinned !== b.isPinned) {
           return b.isPinned ? 1 : -1;
         }
         return a.name.localeCompare(b.name);
       });
-      
-      setGames(reorderedGames);
-      await gameLibraryService.updateGamePinned(token, game.idLibrary, newPinnedStatus);
+
+      setItems(reorderedItems);
+      await itemCollectionService.updateItemPinned(token, item.idLibrary, newPinnedStatus);
     } catch (err) {
-      // Revert optimistic update on error
-      setGames(games.map(g =>
-        g.idLibrary === game.idLibrary
-          ? { ...g, isPinned: game.isPinned }
-          : g
+      setItems(items.map(i =>
+        i.idLibrary === item.idLibrary ? { ...i, isPinned: item.isPinned } : i
       ));
       console.error('Error toggling pinned status:', err);
       alert('Error al actualizar el estado de pinnear');
@@ -161,28 +151,22 @@ export const Home = () => {
     }
   };
 
-  const handleToggleFavorite = async (game: any) => {
+  const handleToggleFavorite = async (item: any) => {
     const token = localStorage.getItem('auth_token');
-    if (!token || !game.idLibrary) return;
+    if (!token || !item.idLibrary) return;
 
     try {
-      setIsUpdating(game.idLibrary);
-      const newFavoriteStatus = !game.isFavorite;
-      
-      // Optimistic update
-      setGames(games.map(g =>
-        g.idLibrary === game.idLibrary
-          ? { ...g, isFavorite: newFavoriteStatus }
-          : g
+      setIsUpdating(item.idLibrary);
+      const newFavoriteStatus = !item.isFavorite;
+
+      setItems(items.map(i =>
+        i.idLibrary === item.idLibrary ? { ...i, isFavorite: newFavoriteStatus } : i
       ));
 
-      await gameLibraryService.updateGameFavorite(token, game.idLibrary, newFavoriteStatus);
+      await itemCollectionService.updateItemFavorite(token, item.idLibrary, newFavoriteStatus);
     } catch (err) {
-      // Revert optimistic update on error
-      setGames(games.map(g =>
-        g.idLibrary === game.idLibrary
-          ? { ...g, isFavorite: game.isFavorite }
-          : g
+      setItems(items.map(i =>
+        i.idLibrary === item.idLibrary ? { ...i, isFavorite: item.isFavorite } : i
       ));
       console.error('Error toggling favorite status:', err);
       alert('Error al actualizar el estado de favorito');
@@ -191,26 +175,24 @@ export const Home = () => {
     }
   };
 
-  const handleDeleteGame = async (game: any) => {
+  const handleDeleteItem = async (item: any) => {
     const token = localStorage.getItem('auth_token');
-    if (!token || !game.idLibrary) return;
+    if (!token || !item.idLibrary) return;
 
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar "${game.name}" de tu biblioteca?`)) {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar "${item.name}" de tu colección?`)) {
       return;
     }
 
     try {
-      setIsUpdating(game.idLibrary);
-      
-      // Optimistic update
-      setGames(games.filter(g => g.idLibrary !== game.idLibrary));
+      setIsUpdating(item.idLibrary);
 
-      await gameLibraryService.deleteFromLibrary(token, game.idLibrary);
+      setItems(items.filter(i => i.idLibrary !== item.idLibrary));
+
+      await itemCollectionService.deleteFromCollection(token, item.idLibrary);
     } catch (err) {
-      // Revert optimistic update on error
-      setGames([...games, game]);
-      console.error('Error deleting game:', err);
-      alert('Error al eliminar el juego de la biblioteca');
+      setItems([...items, item]);
+      console.error('Error deleting item:', err);
+      alert('Error al eliminar el elemento de la colección');
     } finally {
       setIsUpdating(null);
     }
@@ -219,22 +201,22 @@ export const Home = () => {
   return (
     <div className={styles.mainLayout}>
       <Sidebar />
-      
+
       <div className={styles.mainContent}>
         <div className={styles.contentContainer}>
-          <h1 className={styles.pageTitle}>Lista de juegos</h1>
-          
+          <h1 className={styles.pageTitle}>Mi Colección</h1>
+
           <div className={styles.actionBar}>
             <input
               type="text"
               className={styles.searchInput}
-              placeholder="Buscar juegos..."
+              placeholder="Buscar elementos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
             <div style={{ position: 'relative' }} ref={filterMenuRef}>
-              <button 
-                className={styles.filterBtn} 
+              <button
+                className={styles.filterBtn}
                 title="Filtros"
                 onClick={() => setShowFilterMenu(!showFilterMenu)}
               >
@@ -242,7 +224,7 @@ export const Home = () => {
               </button>
               {showFilterMenu && (
                 <div className={styles.filterMenu}>
-                  <button 
+                  <button
                     className={`${styles.filterOption} ${currentFilter === 'all' ? styles.active : ''}`}
                     onClick={() => {
                       setCurrentFilter('all');
@@ -251,7 +233,7 @@ export const Home = () => {
                   >
                     Ver todos
                   </button>
-                  <button 
+                  <button
                     className={`${styles.filterOption} ${currentFilter === 'favorites' ? styles.active : ''}`}
                     onClick={() => {
                       setCurrentFilter('favorites');
@@ -260,7 +242,7 @@ export const Home = () => {
                   >
                     ⭐ Favoritos
                   </button>
-                  <button 
+                  <button
                     className={`${styles.filterOption} ${currentFilter === 'pinned' ? styles.active : ''}`}
                     onClick={() => {
                       setCurrentFilter('pinned');
@@ -269,7 +251,7 @@ export const Home = () => {
                   >
                     📌 Pinneados
                   </button>
-                  <button 
+                  <button
                     className={`${styles.filterOption} ${currentFilter === 'hours' ? styles.active : ''}`}
                     onClick={() => {
                       setCurrentFilter('hours');
@@ -282,73 +264,80 @@ export const Home = () => {
               )}
             </div>
             <button className={styles.createBtn} onClick={() => navigate('/create')}>
-              Añadir juego
+              Añadir elemento
             </button>
           </div>
 
           <div className={styles.gameList}>
-          {filteredGames.length > 0 ? (
-            filteredGames.map((game, index) => {
-              let cardClassName = styles.gameCard;
-              if (game.isPinned && game.isFavorite) {
-                cardClassName = `${styles.gameCard} ${styles.pinnedFavorite}`;
-              } else if (game.isPinned) {
-                cardClassName = `${styles.gameCard} ${styles.pinned}`;
-              } else if (game.isFavorite) {
-                cardClassName = `${styles.gameCard} ${styles.favorite}`;
-              }
-              
-              return (
-              <div key={game.idGames || game.id} className={cardClassName}>
-                <img 
-                  src={game.img || '/gameImage/prueba.jpg'} 
-                  alt={game.name}
-                  className={styles.gameImage}
-                />
-                <h3 className={styles.gameName}>{game.name}</h3>
-                {game.totalHours !== undefined && <p className={styles.gameHours}>{game.totalHours.toFixed(1)} horas</p>}
-                <div className={styles.spacer}></div>
-                <div className={styles.gameActions}>
-                  <button 
-                    className={`${styles.iconBtn} ${game.isPinned ? styles.active : ''}`}
-                    title={game.isPinned ? 'Despinnear' : 'Pinnear'}
-                    onClick={() => handleTogglePinned(game)}
-                    disabled={isUpdating === game.idLibrary}
+            {filteredItems.length > 0 ? (
+              filteredItems.map((item) => {
+                let cardClassName = styles.gameCard;
+                if (item.isPinned && item.isFavorite) {
+                  cardClassName = `${styles.gameCard} ${styles.pinnedFavorite}`;
+                } else if (item.isPinned) {
+                  cardClassName = `${styles.gameCard} ${styles.pinned}`;
+                } else if (item.isFavorite) {
+                  cardClassName = `${styles.gameCard} ${styles.favorite}`;
+                }
+
+                return (
+                  <div
+                    key={item.idGames || item.id}
+                    className={cardClassName}
+                    onClick={() => navigate(`/item/${item.idLibrary}`, { state: { itemName: item.name, itemImg: item.img } })}
+                    style={{ cursor: 'pointer' }}
                   >
-                    📌
-                  </button>
-                  <button 
-                    className={`${styles.iconBtn} ${game.isFavorite ? styles.active : ''}`}
-                    title={game.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
-                    onClick={() => handleToggleFavorite(game)}
-                    disabled={isUpdating === game.idLibrary}
-                  >
-                    ⭐
-                  </button>
-                  <button 
-                    className={styles.deleteBtn}
-                    title="Eliminar"
-                    onClick={() => handleDeleteGame(game)}
-                    disabled={isUpdating === game.idLibrary}
-                  >
-                    🗑️
-                  </button>
-                </div>
+                    <img
+                      src={item.img || '/itemImage/prueba.jpg'}
+                      alt={item.name}
+                      className={styles.gameImage}
+                    />
+                    <h3 className={styles.gameName}>{item.name}</h3>
+                    {item.totalHours !== undefined && (
+                      <p className={styles.gameHours}>{item.totalHours.toFixed(1)} horas</p>
+                    )}
+                    <div className={styles.spacer}></div>
+                    <div className={styles.gameActions} onClick={e => e.stopPropagation()}>
+                      <button
+                        className={`${styles.iconBtn} ${item.isPinned ? styles.active : ''}`}
+                        title={item.isPinned ? 'Despinnear' : 'Pinnear'}
+                        onClick={() => handleTogglePinned(item)}
+                        disabled={isUpdating === item.idLibrary}
+                      >
+                        📌
+                      </button>
+                      <button
+                        className={`${styles.iconBtn} ${item.isFavorite ? styles.active : ''}`}
+                        title={item.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+                        onClick={() => handleToggleFavorite(item)}
+                        disabled={isUpdating === item.idLibrary}
+                      >
+                        ⭐
+                      </button>
+                      <button
+                        className={styles.deleteBtn}
+                        title="Eliminar"
+                        onClick={() => handleDeleteItem(item)}
+                        disabled={isUpdating === item.idLibrary}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className={styles.emptyState}>
+                <p>
+                  {searchTerm
+                    ? 'No se encontraron elementos con ese nombre'
+                    : 'No hay elementos en tu colección'}
+                </p>
+                <p style={{ fontSize: '14px', marginTop: '10px' }}>
+                  ¡Añade elementos nuevos para comenzar!
+                </p>
               </div>
-            );
-            })
-          ) : (
-            <div className={styles.emptyState}>
-              <p>
-                {searchTerm
-                  ? 'No se encontraron juegos con ese nombre'
-                  : 'No hay juegos en tu biblioteca'}
-              </p>
-              <p style={{ fontSize: '14px', marginTop: '10px' }}>
-                ¡Añade juegos nuevos para comenzar!
-              </p>
-            </div>
-          )}
+            )}
           </div>
         </div>
       </div>

@@ -1,7 +1,7 @@
-const GAME_API_URL = 'http://localhost:8001';
-const LIBRARY_API_URL = 'http://localhost:8002';
+const ITEM_API_URL = 'http://localhost:8001';
+const COLLECTION_API_URL = 'http://localhost:8002';
 
-interface Game {
+interface Item {
   idGames?: number;
   name: string;
   img?: string;
@@ -11,36 +11,36 @@ interface Game {
   isPinned?: number | boolean;
 }
 
-interface GameResponse {
-  games: Game[];
+interface ItemResponse {
+  items: RawItem[];
 }
 
-interface LibraryCreateResponse {
-  message: string;
+interface RawItem {
+  idGames?: number;
+  name: string;
+  img?: string;
+  totalHours?: number | string;
+  idLibrary?: number;
+  isFavorite?: number | boolean;
+  isPinned?: number | boolean;
 }
 
-// Images are mounted directly in /public/gameImage, accessible locally
 const normalizeImagePath = (imagePath: string | undefined): string | undefined => {
   if (!imagePath) return undefined;
-  
-  // Images are already in the correct format (/gameImage/filename.png)
-  // Just return as-is since they're mounted in the frontend's public directory
   return imagePath;
 };
 
-// Normalize game data ensuring all fields are properly typed
-const normalizeGame = (game: any): Game => ({
-  ...game,
-  img: normalizeImagePath(game.img),
-  totalHours: typeof game.totalHours === 'number' ? game.totalHours : (game.totalHours ? parseFloat(game.totalHours) : undefined),
-  isFavorite: game.isFavorite ? Boolean(game.isFavorite) : false,
-  isPinned: game.isPinned ? Boolean(game.isPinned) : false,
+const normalizeItem = (item: RawItem): Item => ({
+  ...item,
+  img: normalizeImagePath(item.img),
+  totalHours: typeof item.totalHours === 'number' ? item.totalHours : (item.totalHours ? parseFloat(item.totalHours) : undefined),
+  isFavorite: Boolean(item.isFavorite),
+  isPinned: Boolean(item.isPinned),
 });
 
-export const gameLibraryService = {
-  // Get all games
-  getAllGames: async (token: string): Promise<Game[]> => {
-    const response = await fetch(`${GAME_API_URL}/games/gamesList`, {
+export const itemCollectionService = {
+  getAllItems: async (token: string): Promise<Item[]> => {
+    const response = await fetch(`${ITEM_API_URL}/items/itemsList`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -49,21 +49,20 @@ export const gameLibraryService = {
     });
 
     if (!response.ok) {
-      throw new Error('Error fetching games');
+      throw new Error('Error fetching items');
     }
 
-    const data = (await response.json()) as GameResponse;
-    const games = data.games || [];
-    return games.map(normalizeGame);
+    const data = (await response.json()) as ItemResponse;
+    const items = data.items || [];
+    return items.map(normalizeItem);
   },
 
-  // Search games NOT in user's library
-  searchGamesNotInLibrary: async (
+  searchItemsNotInCollection: async (
     token: string,
     userId: string,
     searchTerm: string
-  ): Promise<Game[]> => {
-    const response = await fetch(`${LIBRARY_API_URL}/library/searchGamesNotInLibrary`, {
+  ): Promise<Item[]> => {
+    const response = await fetch(`${COLLECTION_API_URL}/collection/searchItemsNotInCollection`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -77,29 +76,22 @@ export const gameLibraryService = {
 
     if (!response.ok) {
       const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
-      throw new Error(errorData?.message || 'Error searching games');
+      throw new Error(errorData?.message || 'Error searching items');
     }
 
-    const data = (await response.json()) as GameResponse;
-    const games = data.games || [];
-    console.log('📦 Games loaded:', games.length);
-    return games.map(normalizeGame);
+    const data = (await response.json()) as ItemResponse;
+    const items = data.items || [];
+    return items.map(normalizeItem);
   },
 
-  // Create a new game
-  createGame: async (token: string, name: string, image?: File): Promise<Game> => {
+  createItem: async (token: string, name: string, image?: File): Promise<Item> => {
     const formData = new FormData();
     formData.append('name', name);
     if (image) {
       formData.append('image', image);
-      console.log('📤 Sending form data with image:', image.name);
-    } else {
-      console.log('📤 Sending form data without image (using default)');
     }
 
-    console.log('🔗 POST to:', `${GAME_API_URL}/games/create`);
-
-    const response = await fetch(`${GAME_API_URL}/games/create`, {
+    const response = await fetch(`${ITEM_API_URL}/items/create`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -109,18 +101,15 @@ export const gameLibraryService = {
 
     if (!response.ok) {
       const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
-      throw new Error(errorData?.message || 'Error creating game');
+      throw new Error(errorData?.message || 'Error creating item');
     }
 
-    const data = (await response.json()) as { game: Game };
-    console.log('✅ Game created response:', data.game);
-    console.log('🖼️ Image path in response:', data.game.img);
-    return normalizeGame(data.game);
+    const data = (await response.json()) as { item: RawItem };
+    return normalizeItem(data.item);
   },
 
-  // Add game to user's library
-  addToLibrary: async (token: string, userId: string, gameId: number): Promise<void> => {
-    const response = await fetch(`${LIBRARY_API_URL}/library/createLibrary`, {
+  addToCollection: async (token: string, userId: string, itemId: number): Promise<void> => {
+    const response = await fetch(`${COLLECTION_API_URL}/collection/createCollection`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -128,20 +117,19 @@ export const gameLibraryService = {
       },
       body: JSON.stringify({
         idUsers: parseInt(userId),
-        idGames: gameId,
+        idGames: itemId,
       }),
     });
 
     if (!response.ok) {
       const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
-      throw new Error(errorData?.message || 'Error adding game to library');
+      throw new Error(errorData?.message || 'Error adding item to collection');
     }
   },
 
-  // Get user's library
-  getUserLibrary: async (token: string, userId: string): Promise<Game[]> => {
+  getUserCollection: async (token: string, userId: string): Promise<Item[]> => {
     try {
-      const response = await fetch(`${LIBRARY_API_URL}/library/libraryListByUserId`, {
+      const response = await fetch(`${COLLECTION_API_URL}/collection/collectionListByUserId`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -154,184 +142,153 @@ export const gameLibraryService = {
 
       if (!response.ok) {
         const errorData = (await response.text().catch(() => null)) as string | null;
-        console.error(`❌ Library API Error: ${response.status} ${response.statusText}`, errorData);
-        throw new Error(`Error fetching library: ${response.status} ${response.statusText}`);
+        console.error(`❌ Collection API Error: ${response.status} ${response.statusText}`, errorData);
+        throw new Error(`Error fetching collection: ${response.status} ${response.statusText}`);
       }
 
-      const data = (await response.json()) as { library?: Game[]; games?: Game[] };
-      const games = data.library || data.games || [];
-      
-      console.log(`📚 Loaded ${games.length} games from library`);
-      return games.map(normalizeGame);
+      const data = (await response.json()) as { collection?: RawItem[]; items?: RawItem[] };
+      const items = data.collection || data.items || [];
+      return items.map(normalizeItem);
     } catch (error) {
-      console.error('🔴 getUserLibrary error:', error);
+      console.error('🔴 getUserCollection error:', error);
       throw error;
     }
   },
 
-  // Update game favorite status
-  updateGameFavorite: async (token: string, idLibrary: number, isFavorite: boolean): Promise<void> => {
+  updateItemFavorite: async (token: string, idLibrary: number, isFavorite: boolean): Promise<void> => {
     try {
-      const response = await fetch(`${LIBRARY_API_URL}/library/updateLibrary`, {
+      const response = await fetch(`${COLLECTION_API_URL}/collection/updateCollection`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          idLibrary,
-          isFavorite,
-        }),
+        body: JSON.stringify({ idLibrary, isFavorite }),
       });
 
       if (!response.ok) {
         const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
         throw new Error(errorData?.message || 'Error updating favorite status');
       }
-
-      console.log(`⭐ Game ${idLibrary} favorite status updated to ${isFavorite}`);
     } catch (error) {
-      console.error('❌ updateGameFavorite error:', error);
+      console.error('❌ updateItemFavorite error:', error);
       throw error;
     }
   },
 
-  // Update game pinned status
-  updateGamePinned: async (token: string, idLibrary: number, isPinned: boolean): Promise<void> => {
+  updateItemPinned: async (token: string, idLibrary: number, isPinned: boolean): Promise<void> => {
     try {
-      const response = await fetch(`${LIBRARY_API_URL}/library/updateLibrary`, {
+      const response = await fetch(`${COLLECTION_API_URL}/collection/updateCollection`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          idLibrary,
-          isPinned,
-        }),
+        body: JSON.stringify({ idLibrary, isPinned }),
       });
 
       if (!response.ok) {
         const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
         throw new Error(errorData?.message || 'Error updating pinned status');
       }
-
-      console.log(`📌 Game ${idLibrary} pinned status updated to ${isPinned}`);
     } catch (error) {
-      console.error('❌ updateGamePinned error:', error);
+      console.error('❌ updateItemPinned error:', error);
       throw error;
     }
   },
 
-  // Delete game from library
-  deleteFromLibrary: async (token: string, idLibrary: number): Promise<void> => {
+  deleteFromCollection: async (token: string, idLibrary: number): Promise<void> => {
     try {
-      const response = await fetch(`${LIBRARY_API_URL}/library/deleteLibrary`, {
+      const response = await fetch(`${COLLECTION_API_URL}/collection/deleteCollection`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          idLibrary,
-        }),
+        body: JSON.stringify({ idLibrary }),
       });
 
       if (!response.ok) {
         const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(errorData?.message || 'Error deleting game from library');
+        throw new Error(errorData?.message || 'Error deleting item from collection');
       }
-
-      console.log(`🗑️ Game ${idLibrary} deleted from library`);
     } catch (error) {
-      console.error('❌ deleteFromLibrary error:', error);
+      console.error('❌ deleteFromCollection error:', error);
       throw error;
     }
   },
 
-  // Get favorite games
-  getFavoriteGames: async (token: string, userId: string): Promise<Game[]> => {
+  getFavoriteItems: async (token: string, userId: string): Promise<Item[]> => {
     try {
-      const response = await fetch(`${LIBRARY_API_URL}/library/favoriteGames`, {
+      const response = await fetch(`${COLLECTION_API_URL}/collection/favoriteItems`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          idUsers: parseInt(userId),
-        }),
+        body: JSON.stringify({ idUsers: parseInt(userId) }),
       });
 
       if (!response.ok) {
         const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(errorData?.message || 'Error fetching favorite games');
+        throw new Error(errorData?.message || 'Error fetching favorite items');
       }
 
-      const data = (await response.json()) as { games?: Game[] };
-      const games = data.games || [];
-      console.log(`⭐ Loaded ${games.length} favorite games`);
-      return games.map(normalizeGame);
+      const data = (await response.json()) as { items?: RawItem[] };
+      const items = data.items || [];
+      return items.map(normalizeItem);
     } catch (error) {
-      console.error('❌ getFavoriteGames error:', error);
+      console.error('❌ getFavoriteItems error:', error);
       throw error;
     }
   },
 
-  // Get pinned games
-  getPinnedGames: async (token: string, userId: string): Promise<Game[]> => {
+  getPinnedItems: async (token: string, userId: string): Promise<Item[]> => {
     try {
-      const response = await fetch(`${LIBRARY_API_URL}/library/pinnedGames`, {
+      const response = await fetch(`${COLLECTION_API_URL}/collection/pinnedItems`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          idUsers: parseInt(userId),
-        }),
+        body: JSON.stringify({ idUsers: parseInt(userId) }),
       });
 
       if (!response.ok) {
         const errorData = (await response.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(errorData?.message || 'Error fetching pinned games');
+        throw new Error(errorData?.message || 'Error fetching pinned items');
       }
 
-      const data = (await response.json()) as { games?: Game[] };
-      const games = data.games || [];
-      console.log(`📌 Loaded ${games.length} pinned games`);
-      return games.map(normalizeGame);
+      const data = (await response.json()) as { items?: RawItem[] };
+      const items = data.items || [];
+      return items.map(normalizeItem);
     } catch (error) {
-      console.error('❌ getPinnedGames error:', error);
+      console.error('❌ getPinnedItems error:', error);
       throw error;
     }
   },
 
-  // Get library sorted by hours
-  getLibraryByHours: async (token: string, userId: string): Promise<Game[]> => {
+  getCollectionByHours: async (token: string, userId: string): Promise<Item[]> => {
     try {
-      const response = await fetch(`${LIBRARY_API_URL}/library/libraryListHourByUserId`, {
+      const response = await fetch(`${COLLECTION_API_URL}/collection/collectionListHourByUserId`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          idUsers: parseInt(userId),
-        }),
+        body: JSON.stringify({ idUsers: parseInt(userId) }),
       });
 
       if (!response.ok) {
         const errorData = (await response.text().catch(() => null)) as string | null;
-        throw new Error(errorData || 'Error fetching library by hours');
+        throw new Error(errorData || 'Error fetching collection by hours');
       }
 
-      const data = (await response.json()) as { library?: Game[]; games?: Game[] };
-      const games = data.library || data.games || [];
-      console.log(`⏱️ Loaded ${games.length} games sorted by hours`);
-      return games.map(normalizeGame);
+      const data = (await response.json()) as { collection?: RawItem[]; items?: RawItem[] };
+      const items = data.collection || data.items || [];
+      return items.map(normalizeItem);
     } catch (error) {
-      console.error('❌ getLibraryByHours error:', error);
+      console.error('❌ getCollectionByHours error:', error);
       throw error;
     }
   },

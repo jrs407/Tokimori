@@ -72,7 +72,7 @@ export const Sidebar = () => {
             title="Crear"
           >
             <span className={styles.icon}>➕</span>
-            {isExpanded && <span className={styles.label}>Añadir juego</span>}
+            {isExpanded && <span className={styles.label}>Añadir elemento</span>}
           </button>
         </div>
 

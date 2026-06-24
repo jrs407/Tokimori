@@ -1,1 +1,1 @@
-export { AddGame } from './AddGame';
+export { AddItem } from './AddGame';

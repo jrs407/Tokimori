@@ -1,1 +1,1 @@
-export { CreateGameModal } from './CreateGameModal';
+export { CreateItemModal } from './CreateGameModal';
