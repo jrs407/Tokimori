@@ -584,19 +584,23 @@ export const getLast7DaysByUserGame = async (req: AuthenticatedRequest, res: Res
     }
 
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT DATE(s.date) AS dayDate, IFNULL(SUM(s.minutes),0) AS totalMinutes
+      `SELECT DATE_FORMAT(s.date, '%Y-%m-%d') AS dayDate, IFNULL(SUM(s.minutes),0) AS totalMinutes
        FROM sessions s
        JOIN library l ON s.library_idLibrary = l.idLibrary
        WHERE l.Users_idUsers = ? AND l.Games_idGames = ? AND s.date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-       GROUP BY DATE(s.date)
-       ORDER BY DATE(s.date)`,
+       GROUP BY DATE_FORMAT(s.date, '%Y-%m-%d')
+       ORDER BY DATE_FORMAT(s.date, '%Y-%m-%d')`,
       [idUser, idGame]
     );
 
-    // build a map day -> minutes
+    // build a map day -> minutes (normalise key in case driver returns Date object)
+    const toDateStr = (v: unknown): string => {
+      if (v instanceof Date) return v.toISOString().slice(0, 10);
+      return String(v).slice(0, 10);
+    };
     const map: Record<string, number> = {};
     for (const r of rows) {
-      map[r.dayDate as string] = Number(r.totalMinutes ?? 0);
+      map[toDateStr(r.dayDate)] = Number(r.totalMinutes ?? 0);
     }
 
     // construct last 7 days array (oldest -> newest)

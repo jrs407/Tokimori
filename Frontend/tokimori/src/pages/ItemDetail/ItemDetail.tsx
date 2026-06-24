@@ -216,10 +216,14 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [objFilter, setObjFilter] = useState<ObjFilter>('all');
+  const [objSearch, setObjSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [newObjTitle, setNewObjTitle] = useState('');
   const [newObjDesc, setNewObjDesc] = useState('');
   const [creating, setCreating] = useState(false);
+  const [editingObjId, setEditingObjId] = useState<number | null>(null);
+  const [editObjTitle, setEditObjTitle] = useState('');
+  const [editObjDesc, setEditObjDesc] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -234,13 +238,15 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
   useEffect(() => { load(); }, [load]);
 
   const displayedObjectives = useMemo(() => {
-    const filtered = objectives.filter(o => {
-      if (objFilter === 'favorites') return Boolean(o.isFavorite);
-      if (objFilter === 'pinned') return Boolean(o.isPinned);
-      return true;
-    });
+    const filtered = objectives
+      .filter(o => {
+        if (objFilter === 'favorites') return Boolean(o.isFavorite);
+        if (objFilter === 'pinned') return Boolean(o.isPinned);
+        return true;
+      })
+      .filter(o => !objSearch || o.title.toLowerCase().includes(objSearch.toLowerCase()));
     return sortByPinnedThenTitle(filtered);
-  }, [objectives, objFilter]);
+  }, [objectives, objFilter, objSearch]);
 
   const toggleObjective = async (idObjectives: number) => {
     const obj = objectives.find(o => o.idObjectives === idObjectives);
@@ -296,6 +302,28 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
     } catch { setError('Error al eliminar el objetivo'); }
   };
 
+  const startEditObj = (obj: ObjectiveWithTasks) => {
+    setEditingObjId(obj.idObjectives);
+    setEditObjTitle(obj.title);
+    setEditObjDesc(obj.description ?? '');
+  };
+
+  const handleSaveEditObj = async (idObjective: number) => {
+    if (!editObjTitle.trim()) return;
+    try {
+      await objectivesService.updateObjective(token, idObjective, {
+        title: editObjTitle.trim(),
+        description: editObjDesc.trim() || undefined,
+      });
+      setObjectives(prev => prev.map(o =>
+        o.idObjectives === idObjective
+          ? { ...o, title: editObjTitle.trim(), description: editObjDesc.trim() || undefined }
+          : o
+      ));
+      setEditingObjId(null);
+    } catch { setError('Error al guardar el objetivo'); }
+  };
+
   const handleAddTask = async (idObjectives: number) => {
     const obj = objectives.find(o => o.idObjectives === idObjectives);
     if (!obj || !obj.taskInput.trim()) return;
@@ -349,6 +377,7 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
         <button className={styles.addBtn} onClick={() => setShowCreate(s => !s)}>{showCreate ? 'Cancelar' : '+ Nuevo objetivo'}</button>
       </div>
       <div className={styles.filterBar}>
+        <input className={styles.searchBarInput} placeholder="Buscar por título..." value={objSearch} onChange={e => setObjSearch(e.target.value)} />
         <button className={`${styles.filterPill} ${objFilter === 'all' ? styles.activePill : ''}`} onClick={() => setObjFilter('all')}>Todos</button>
         <button className={`${styles.filterPill} ${objFilter === 'favorites' ? styles.activePill : ''}`} onClick={() => setObjFilter('favorites')}>⭐ Favoritos</button>
         <button className={`${styles.filterPill} ${objFilter === 'pinned' ? styles.activePill : ''}`} onClick={() => setObjFilter('pinned')}>📌 Fijados</button>
@@ -378,7 +407,7 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
             const totalCount = obj.tasks.length;
             return (
               <div key={obj.idObjectives} className={styles.objectiveCard}>
-                <div className={styles.objectiveHeader} onClick={() => toggleObjective(obj.idObjectives)}>
+                <div className={styles.objectiveHeader} onClick={() => editingObjId !== obj.idObjectives && toggleObjective(obj.idObjectives)}>
                   <span className={`${styles.objectiveChevron} ${obj.isOpen ? styles.open : ''}`}>▶</span>
                   <div className={styles.objectiveInfo}>
                     <p className={styles.objectiveName}>{obj.title}</p>
@@ -387,12 +416,34 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
                   {obj.isOpen && totalCount > 0 && (
                     <span className={`${styles.objectiveProgress} ${completedCount === totalCount ? styles.progressDone : ''}`}>{completedCount}/{totalCount}</span>
                   )}
+                  <button className={styles.iconBtn} title="Editar" onClick={e => { e.stopPropagation(); editingObjId === obj.idObjectives ? setEditingObjId(null) : startEditObj(obj); }}>✏️</button>
                   <button className={`${styles.iconBtn} ${obj.isPinned ? styles.active : ''}`} title={obj.isPinned ? 'Despinnear' : 'Pinnear'} onClick={e => { e.stopPropagation(); handleToggleObjPin(obj); }}>📌</button>
                   <button className={`${styles.iconBtn} ${obj.isFavorite ? styles.active : ''}`} title={obj.isFavorite ? 'Quitar favorito' : 'Favorito'} onClick={e => { e.stopPropagation(); handleToggleObjFav(obj); }}>⭐</button>
                   <button className={styles.objectiveDeleteBtn} title="Eliminar objetivo" onClick={e => { e.stopPropagation(); handleDeleteObjective(obj.idObjectives); }}>🗑️</button>
                 </div>
+                {editingObjId === obj.idObjectives && (
+                  <div className={styles.objectiveEditForm}>
+                    <input
+                      className={styles.noteInput}
+                      placeholder="Título *"
+                      value={editObjTitle}
+                      onChange={e => setEditObjTitle(e.target.value)}
+                      autoFocus
+                    />
+                    <input
+                      className={styles.noteInput}
+                      placeholder="Descripción (opcional)"
+                      value={editObjDesc}
+                      onChange={e => setEditObjDesc(e.target.value)}
+                    />
+                    <div className={styles.formActions}>
+                      <button className={styles.cancelBtn} onClick={() => setEditingObjId(null)}>Cancelar</button>
+                      <button className={styles.saveBtn} onClick={() => handleSaveEditObj(obj.idObjectives)} disabled={!editObjTitle.trim()}>Guardar</button>
+                    </div>
+                  </div>
+                )}
                 {obj.loadingTasks && <p className={styles.loadingText} style={{ padding: '10px 16px', margin: 0 }}>Cargando...</p>}
-                {obj.isOpen && !obj.loadingTasks && (
+                {obj.isOpen && !obj.loadingTasks && editingObjId !== obj.idObjectives && (
                   <div className={styles.taskList}>
                     {totalCount > 0 && (
                       <div className={styles.taskListActions}>
