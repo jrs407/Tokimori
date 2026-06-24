@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createSession, getSessionCountByUserGame, getSessionCountByUser, getAverageHoursByUserGame, getAverageHoursByUser, getSessionById, getDailyAverageHoursByUserGame, getDailyAverageHoursByUser, getFavoriteDayByUserGame, getFavoriteDayByUser, getLast7DaysByUserGame, getLast7DaysByUser, getMostPlayedGameByUser } from '../controllers/session.controller';
+import { createSession, getSessionCountByUserGame, getSessionCountByUser, getAverageHoursByUserGame, getAverageHoursByUser, getSessionById, getDailyAverageHoursByUserGame, getDailyAverageHoursByUser, getFavoriteDayByUserGame, getFavoriteDayByUser, getLast7DaysByUserGame, getLast7DaysByUser, getMostPlayedGameByUser, getTotalHoursByLibrary } from '../controllers/session.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { adminMiddleware } from '../middlewares/adminMiddleware';
 
@@ -18,5 +18,6 @@ router.post('/favoriteDayByUser', authMiddleware, getFavoriteDayByUser);
 router.post('/last7ByUserGame', authMiddleware, getLast7DaysByUserGame);
 router.post('/last7ByUser', authMiddleware, getLast7DaysByUser);
 router.post('/mostPlayedGameByUser', authMiddleware, getMostPlayedGameByUser);
+router.post('/totalHoursByLibrary', authMiddleware, getTotalHoursByLibrary);
 
 export default router;

@@ -17,6 +17,7 @@
   height: 100vh;
   width: 100%;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  position: relative;
 }
 
 .mainContent {
@@ -649,10 +650,22 @@
   padding: 6px 14px;
 }
 
+.sessionsRow {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.sessionsRow > .sessionCard {
+  flex: 1;
+  min-width: 0;
+}
+
 .sessionCard {
   background: var(--card-bg);
   border: 2px solid var(--card-border);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 18px;
   flex-shrink: 0;
   display: flex;
@@ -661,11 +674,11 @@
 }
 
 .sessionCardTitle {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--accent-color);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.07em;
   margin: 0;
 }
 
@@ -815,67 +828,147 @@
   margin: 0;
 }
 
-/* ── Statistics ── */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   STATISTICS CARD
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.statsCard {
+  background: var(--card-bg);
+  border: 2px solid rgba(102, 126, 234, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .statsNote {
   color: var(--text-secondary);
   font-size: 14px;
   margin: 0;
 }
 
-.statsGrid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+.statsLoading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  padding: 12px 0;
 }
 
-@media (max-width: 700px) {
-  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.statsSpinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(102, 126, 234, 0.3);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.statsErrorBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(231, 76, 60, 0.1);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #e74c3c;
+}
+
+.retryBtn {
+  padding: 4px 12px;
+  background: transparent;
+  border: 1px solid rgba(231, 76, 60, 0.5);
+  border-radius: 6px;
+  color: #e74c3c;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.retryBtn:hover {
+  background: rgba(231, 76, 60, 0.15);
+}
+
+/* ── Stats grid: 2×2 ── */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
 }
 
 .statBox {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 14px 10px;
+  background: rgba(102, 126, 234, 0.07);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 10px;
+  padding: 16px 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.statBox:hover {
+  border-color: rgba(102, 126, 234, 0.5);
+  background: rgba(102, 126, 234, 0.12);
+  transform: translateY(-1px);
+}
+
+.statIcon {
+  font-size: 22px;
+  line-height: 1;
 }
 
 .statValue {
-  font-size: 22px;
+  font-size: 26px;
   font-weight: 700;
   color: var(--text-primary);
   text-align: center;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
 }
 
 .statLabel {
   font-size: 11px;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   text-align: center;
 }
 
 /* ── Bar chart ── */
 .chartSection {
-  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .chartTitle {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin: 0 0 10px 0;
+  letter-spacing: 0.06em;
+  margin: 0;
 }
 
 .barChart {
   display: flex;
-  align-items: flex-end;
   gap: 6px;
-  height: 120px;
+  height: 160px; /* total: value(14) + barArea(flex) + label(20) */
 }
 
 .barCol {
@@ -883,36 +976,57 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  height: 100%;
-  gap: 4px;
+  min-width: 0;
 }
 
-.barWrapper {
+/* Area that holds the bar, grows to fill remaining space */
+.barArea {
   flex: 1;
   width: 100%;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  flex-direction: column;
+  justify-content: flex-end; /* bar grows from bottom */
+  align-items: center;
+  min-height: 0;
 }
 
 .bar {
-  width: 70%;
+  width: 65%;
+  max-width: 36px;
   background: linear-gradient(180deg, #764ba2, #667eea);
-  border-radius: 3px 3px 0 0;
-  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  min-height: 3px;
   transition: height 0.4s ease;
 }
 
+/* Day label — always at the bottom, fixed height for alignment */
 .barLabel {
-  font-size: 10px;
+  height: 20px;
+  line-height: 20px;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--text-secondary);
   text-align: center;
+  flex-shrink: 0;
+  width: 100%;
 }
 
+/* Hours value — always at the top, fixed height keeps bars aligned */
 .barValue {
+  height: 14px;
+  line-height: 14px;
   font-size: 9px;
   color: var(--accent-color);
+  font-weight: 700;
   text-align: center;
+  flex-shrink: 0;
+}
+
+/* ── Card divider between manual and timer ── */
+.sessionCardDivider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 2px 0;
 }
 
 /* ── Filter bar (search + pills) ── */
@@ -993,4 +1107,123 @@
 .smallActionBtn:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   FLOATING TIMER INDICATOR
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.floatingTimer {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: #1e1e35;
+  border: 2px solid var(--accent-color);
+  border-radius: 14px;
+  padding: 12px 16px;
+  cursor: pointer;
+  z-index: 1000;
+  min-width: 180px;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.35), 0 2px 8px rgba(0,0,0,0.4);
+  transition: all 0.2s ease;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.floatingTimer:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.45), 0 4px 12px rgba(0,0,0,0.4);
+  border-color: #8fa4f0;
+}
+
+.floatingTimerPaused {
+  border-color: #ffc107;
+  box-shadow: 0 8px 32px rgba(255, 193, 7, 0.25), 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.floatingTimerPaused:hover {
+  box-shadow: 0 12px 40px rgba(255, 193, 7, 0.35), 0 4px 12px rgba(0,0,0,0.4);
+  border-color: #ffd54f;
+}
+
+.floatingTimerDone {
+  border-color: #2ecc71;
+  box-shadow: 0 8px 32px rgba(46, 204, 113, 0.3), 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.floatingTimerDone:hover {
+  box-shadow: 0 12px 40px rgba(46, 204, 113, 0.4), 0 4px 12px rgba(0,0,0,0.4);
+  border-color: #55d98d;
+}
+
+.floatingTimerHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.floatingTimerIcon {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(102, 126, 234, 0.15);
+  border-radius: 50%;
+}
+
+.floatingTimerPaused .floatingTimerIcon {
+  background: rgba(255, 193, 7, 0.15);
+}
+
+.floatingTimerDone .floatingTimerIcon {
+  background: rgba(46, 204, 113, 0.15);
+}
+
+.floatingTimerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+}
+
+.floatingTimerLabel {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.floatingTimerDisplay {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
+.floatingTimerBar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.floatingTimerFill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  border-radius: 2px;
+  transition: width 0.8s linear;
+}
+
+.floatingTimerPaused .floatingTimerFill {
+  background: linear-gradient(90deg, #f0a500, #ffc107);
 }

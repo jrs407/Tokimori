@@ -58,8 +58,21 @@ export const sessionService = {
     });
     if (response.status === 404) return null;
     if (!response.ok) throw new Error('Error al obtener el día favorito');
-    const data = await response.json() as { dayOfWeek: number; dayName: string };
-    return data;
+    const data = await response.json() as { dayOfWeek: number; dayName?: string };
+    // Map locally to avoid server encoding issues (MySQL DAYOFWEEK: 1=Sun..7=Sat)
+    const localNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const dayName = localNames[data.dayOfWeek - 1] ?? data.dayName ?? '—';
+    return { dayOfWeek: data.dayOfWeek, dayName };
+  },
+
+  getTotalHoursByLibrary: async (token: string, idLibrary: number): Promise<{ totalHours: number; idGame: number }> => {
+    const response = await fetch(`${SESSIONS_API_URL}/sessions/totalHoursByLibrary`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ idLibrary }),
+    });
+    if (!response.ok) throw new Error('Error al obtener las horas totales');
+    return response.json() as Promise<{ totalHours: number; idGame: number }>;
   },
 
   getLast7Days: async (token: string, idUser: number, idGame: number): Promise<DayData[]> => {

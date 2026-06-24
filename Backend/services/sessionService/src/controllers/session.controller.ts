@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+﻿import type { Request, Response } from 'express';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import pool from '../db';
@@ -90,7 +90,7 @@ export const getMostPlayedGameByUser = async (req: AuthenticatedRequest, res: Re
       return res.status(400).json({ message: 'idUser is required.' });
     }
 
-    if (idUser !== authenticatedUserId && !isAdmin) {
+    if (Number(idUser) !== Number(authenticatedUserId) && !isAdmin) {
       console.warn(
         `Security: User ${authenticatedUserId} attempted to get most played game for user ${idUser}.`
       );
@@ -147,7 +147,7 @@ export const getSessionCountByUserGame = async (req: AuthenticatedRequest, res: 
       return res.status(400).json({ message: 'idUser and idGame are required.' });
     }
 
-    if (idUser !== authenticatedUserId && !isAdmin) {
+    if (Number(idUser) !== Number(authenticatedUserId) && !isAdmin) {
       console.warn(
         `Security: User ${authenticatedUserId} attempted to count sessions for user ${idUser}.`
       );
@@ -191,7 +191,7 @@ export const getSessionCountByUser = async (req: AuthenticatedRequest, res: Resp
       return res.status(400).json({ message: 'idUser is required.' });
     }
 
-    if (idUser !== authenticatedUserId && !isAdmin) {
+    if (Number(idUser) !== Number(authenticatedUserId) && !isAdmin) {
       console.warn(
         `Security: User ${authenticatedUserId} attempted to count sessions for user ${idUser}.`
       );
@@ -236,7 +236,7 @@ export const getAverageHoursByUserGame = async (req: AuthenticatedRequest, res: 
       return res.status(400).json({ message: 'idUser and idGame are required.' });
     }
 
-    if (idUser !== authenticatedUserId && !isAdmin) {
+    if (Number(idUser) !== Number(authenticatedUserId) && !isAdmin) {
       console.warn(
         `Security: User ${authenticatedUserId} attempted to get average hours for user ${idUser}.`
       );
@@ -281,7 +281,7 @@ export const getAverageHoursByUser = async (req: AuthenticatedRequest, res: Resp
       return res.status(400).json({ message: 'idUser is required.' });
     }
 
-    if (idUser !== authenticatedUserId && !isAdmin) {
+    if (Number(idUser) !== Number(authenticatedUserId) && !isAdmin) {
       console.warn(
         `Security: User ${authenticatedUserId} attempted to get average hours for user ${idUser}.`
       );
@@ -377,7 +377,7 @@ export const getDailyAverageHoursByUserGame = async (req: AuthenticatedRequest, 
       return res.status(400).json({ message: 'idUser and idGame are required.' });
     }
 
-    if (idUser !== authenticatedUserId && !isAdmin) {
+    if (Number(idUser) !== Number(authenticatedUserId) && !isAdmin) {
       console.warn(
         `Security: User ${authenticatedUserId} attempted to get daily averages for user ${idUser}.`
       );
@@ -423,7 +423,7 @@ export const getDailyAverageHoursByUser = async (req: AuthenticatedRequest, res:
       return res.status(400).json({ message: 'idUser is required.' });
     }
 
-    if (idUser !== authenticatedUserId && !isAdmin) {
+    if (Number(idUser) !== Number(authenticatedUserId) && !isAdmin) {
       console.warn(
         `Security: User ${authenticatedUserId} attempted to get daily averages for user ${idUser}.`
       );
@@ -450,7 +450,7 @@ export const getDailyAverageHoursByUser = async (req: AuthenticatedRequest, res:
 };
 
 // helper mapping
-const dayNames = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const dayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
 /**
  * Determine which weekday has the highest average hours for user+game
@@ -473,7 +473,7 @@ export const getFavoriteDayByUserGame = async (req: AuthenticatedRequest, res: R
       return res.status(400).json({ message: 'idUser and idGame are required.' });
     }
 
-    if (idUser !== authenticatedUserId && !isAdmin) {
+    if (Number(idUser) !== Number(authenticatedUserId) && !isAdmin) {
       console.warn(
         `Security: User ${authenticatedUserId} attempted to get favorite day for user ${idUser}.`
       );
@@ -525,7 +525,7 @@ export const getFavoriteDayByUser = async (req: AuthenticatedRequest, res: Respo
       return res.status(400).json({ message: 'idUser is required.' });
     }
 
-    if (idUser !== authenticatedUserId && !isAdmin) {
+    if (Number(idUser) !== Number(authenticatedUserId) && !isAdmin) {
       console.warn(
         `Security: User ${authenticatedUserId} attempted to get favorite day for user ${idUser}.`
       );
@@ -576,7 +576,7 @@ export const getLast7DaysByUserGame = async (req: AuthenticatedRequest, res: Res
       return res.status(400).json({ message: 'idUser and idGame are required.' });
     }
 
-    if (idUser !== authenticatedUserId && !isAdmin) {
+    if (Number(idUser) !== Number(authenticatedUserId) && !isAdmin) {
       console.warn(
         `Security: User ${authenticatedUserId} attempted to get last7 days for user ${idUser}.`
       );
@@ -622,6 +622,42 @@ export const getLast7DaysByUserGame = async (req: AuthenticatedRequest, res: Res
 };
 
 /**
+ * Get total hours for a specific library entry
+ */
+export const getTotalHoursByLibrary = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { idLibrary } = req.body as { idLibrary?: number };
+
+    const authenticatedUserId = req.user?.id;
+
+    if (!authenticatedUserId) {
+      return res.status(401).json({ message: 'User not authenticated.' });
+    }
+
+    if (!idLibrary) {
+      return res.status(400).json({ message: 'idLibrary is required.' });
+    }
+
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT totalHours, Games_idGames AS idGame FROM library WHERE idLibrary = ? AND Users_idUsers = ?',
+      [idLibrary, authenticatedUserId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'Library entry not found.' });
+    }
+
+    return res.status(200).json({
+      totalHours: Number(rows[0].totalHours ?? 0),
+      idGame: Number(rows[0].idGame ?? 0),
+    });
+  } catch (error) {
+    console.error('Error fetching total hours by library:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+/**
  * Get total hours played for each of the last 7 days for a user (all games)
  */
 export const getLast7DaysByUser = async (req: AuthenticatedRequest, res: Response) => {
@@ -639,7 +675,7 @@ export const getLast7DaysByUser = async (req: AuthenticatedRequest, res: Respons
       return res.status(400).json({ message: 'idUser is required.' });
     }
 
-    if (idUser !== authenticatedUserId && !isAdmin) {
+    if (Number(idUser) !== Number(authenticatedUserId) && !isAdmin) {
       console.warn(
         `Security: User ${authenticatedUserId} attempted to get last7 days for user ${idUser}.`
       );

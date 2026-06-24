@@ -5,6 +5,7 @@ import { Sidebar } from '../../components/Sidebar';
 import { notesService, type Note } from '../../services/notes.service';
 import { objectivesService, type Objective, type Task } from '../../services/objectives.service';
 import { sessionService, type DayData } from '../../services/session.service';
+import { timerStorage, computeRemaining, computeProgress } from '../../services/timer.storage';
 import styles from './ItemDetail.module.css';
 
 type Tab = 'notes' | 'checklist' | 'sessions' | 'canvas';
@@ -16,6 +17,7 @@ interface LocationState {
   itemImg?: string;
   idGame?: number;
   totalHours?: number;
+  activeTab?: Tab;
 }
 
 const sortByPinnedThenTitle = <T extends { isPinned?: number | boolean; title: string }>(arr: T[]): T[] =>
@@ -436,6 +438,8 @@ interface SessionsSectionProps {
   idUser: number | undefined;
   token: string;
   initialTotalHours: number;
+  itemName: string;
+  itemImg?: string;
 }
 
 interface Stats {
@@ -447,13 +451,16 @@ interface Stats {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours }: SessionsSectionProps) => {
+const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours, itemName, itemImg }: SessionsSectionProps) => {
   const [manualHours, setManualHours] = useState(0);
   const [manualMinutes, setManualMinutes] = useState(30);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
   const [totalHours, setTotalHours] = useState(initialTotalHours);
 
+  useEffect(() => { setTotalHours(initialTotalHours); }, [initialTotalHours]);
+
+  /* ── Timer state (source of truth: localStorage) ── */
   const [timerHours, setTimerHours] = useState(0);
   const [timerMins, setTimerMins] = useState(25);
   const [timerRunning, setTimerRunning] = useState(false);
@@ -463,31 +470,95 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours }
   const [timerDone, setTimerDone] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  /* ── Stats ── */
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState('');
 
   const canShowStats = Boolean(idGame && idUser);
+  const timerActive = timerRunning || timerPaused || remainingSecs !== null;
 
+  /* ── Restore timer from localStorage on mount ── */
+  useEffect(() => {
+    const stored = timerStorage.get();
+    if (!stored || stored.idLibrary !== idLibrary) return;
+
+    const remaining = computeRemaining(stored);
+    const isDone = stored.status === 'done' || (stored.status === 'running' && remaining <= 0);
+
+    setTimerDurationSecs(stored.duration);
+
+    if (isDone) {
+      setRemainingSecs(0);
+      setTimerDone(true);
+      setTimerRunning(false);
+      setTimerPaused(false);
+      timerStorage.set({ ...stored, status: 'done', pausedRemaining: 0 });
+    } else if (stored.status === 'paused') {
+      setRemainingSecs(remaining);
+      setTimerPaused(true);
+      setTimerRunning(false);
+    } else if (stored.status === 'running') {
+      setRemainingSecs(remaining);
+      setTimerRunning(true);
+      setTimerPaused(false);
+      intervalRef.current = setInterval(() => {
+        setRemainingSecs(prev => {
+          if (prev === null || prev <= 1) {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            setTimerRunning(false);
+            setTimerDone(true);
+            const s = timerStorage.get();
+            if (s) timerStorage.set({ ...s, status: 'done', pausedRemaining: 0 });
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
+
+  /* ── Stats loading with allSettled ── */
   const loadStats = useCallback(async () => {
     if (!canShowStats || !idGame || !idUser) return;
     setStatsLoading(true);
     setStatsError('');
     try {
-      const [count, avg, favDay, last7] = await Promise.all([
-        sessionService.getSessionCount(token, idUser, idGame),
-        sessionService.getAverageHours(token, idUser, idGame),
-        sessionService.getFavoriteDay(token, idUser, idGame),
-        sessionService.getLast7Days(token, idUser, idGame),
+      const [countRes, avgRes, favDayRes, last7Res] = await Promise.allSettled([
+        sessionService.getSessionCount(token, Number(idUser), Number(idGame)),
+        sessionService.getAverageHours(token, Number(idUser), Number(idGame)),
+        sessionService.getFavoriteDay(token, Number(idUser), Number(idGame)),
+        sessionService.getLast7Days(token, Number(idUser), Number(idGame)),
       ]);
-      setStats({ sessionCount: count, avgHours: avg, favoriteDay: favDay?.dayName ?? null, last7Days: last7 });
-    } catch { setStatsError('Error al cargar las estadísticas'); }
-    finally { setStatsLoading(false); }
+
+      const anyFailed = [countRes, avgRes, favDayRes, last7Res].some(r => r.status === 'rejected');
+      if (anyFailed) {
+        const firstError = [countRes, avgRes, favDayRes, last7Res]
+          .find(r => r.status === 'rejected') as PromiseRejectedResult | undefined;
+        console.error('Stats error:', firstError?.reason);
+        setStatsError('No se pudieron cargar las estadísticas. Comprueba que el servidor está activo.');
+      }
+
+      setStats({
+        sessionCount: countRes.status === 'fulfilled' ? countRes.value : 0,
+        avgHours: avgRes.status === 'fulfilled' ? avgRes.value : 0,
+        favoriteDay: favDayRes.status === 'fulfilled' ? (favDayRes.value?.dayName ?? null) : null,
+        last7Days: last7Res.status === 'fulfilled' ? last7Res.value : [],
+      });
+    } catch (err) {
+      console.error('loadStats unexpected error:', err);
+      setStatsError('Error inesperado al cargar las estadísticas.');
+    } finally {
+      setStatsLoading(false);
+    }
   }, [token, idUser, idGame, canShowStats]);
 
   useEffect(() => { loadStats(); }, [loadStats]);
-  useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
 
+  /* ── Save session helper ── */
   const saveSession = async (minutes: number) => {
     if (minutes <= 0) return;
     setSaving(true);
@@ -505,9 +576,21 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours }
 
   const handleManualSave = () => saveSession(manualHours * 60 + manualMinutes);
 
+  /* ── Timer controls ── */
   const startTimer = () => {
     const secs = timerHours * 3600 + timerMins * 60;
     if (secs <= 0) return;
+    timerStorage.set({
+      endTime: Date.now() + secs * 1000,
+      pausedRemaining: secs,
+      duration: secs,
+      status: 'running',
+      idLibrary,
+      itemName,
+      itemImg,
+      idGame,
+      totalHours,
+    });
     setTimerDurationSecs(secs);
     setRemainingSecs(secs);
     setTimerDone(false);
@@ -519,6 +602,8 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours }
           if (intervalRef.current) clearInterval(intervalRef.current);
           setTimerRunning(false);
           setTimerDone(true);
+          const s = timerStorage.get();
+          if (s) timerStorage.set({ ...s, status: 'done', pausedRemaining: 0 });
           return 0;
         }
         return prev - 1;
@@ -530,17 +615,24 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours }
     if (intervalRef.current) clearInterval(intervalRef.current);
     setTimerPaused(true);
     setTimerRunning(false);
+    const s = timerStorage.get();
+    if (s) timerStorage.set({ ...s, status: 'paused', pausedRemaining: remainingSecs ?? 0 });
   };
 
   const resumeTimer = () => {
+    const remaining = remainingSecs ?? 0;
     setTimerPaused(false);
     setTimerRunning(true);
+    const s = timerStorage.get();
+    if (s) timerStorage.set({ ...s, status: 'running', endTime: Date.now() + remaining * 1000 });
     intervalRef.current = setInterval(() => {
       setRemainingSecs(prev => {
         if (prev === null || prev <= 1) {
           if (intervalRef.current) clearInterval(intervalRef.current);
           setTimerRunning(false);
           setTimerDone(true);
+          const st = timerStorage.get();
+          if (st) timerStorage.set({ ...st, status: 'done', pausedRemaining: 0 });
           return 0;
         }
         return prev - 1;
@@ -550,6 +642,7 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours }
 
   const stopTimer = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
+    timerStorage.clear();
     setTimerRunning(false);
     setTimerPaused(false);
     setRemainingSecs(null);
@@ -563,17 +656,17 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours }
     stopTimer();
   };
 
+  /* ── Derived display values ── */
   const displaySecs = remainingSecs ?? (timerHours * 3600 + timerMins * 60);
   const hh = Math.floor(displaySecs / 3600);
   const mm = Math.floor((displaySecs % 3600) / 60);
   const ss = displaySecs % 60;
   const progressPct = timerDurationSecs > 0 && remainingSecs !== null
-    ? Math.round(((timerDurationSecs - remainingSecs) / timerDurationSecs) * 100)
+    ? computeProgress({ endTime: 0, pausedRemaining: remainingSecs, duration: timerDurationSecs, status: 'paused', idLibrary, itemName })
     : 0;
 
   const maxLast7 = stats ? Math.max(...stats.last7Days.map(d => d.hours), 0.1) : 0;
   const dayLabels = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-  const timerActive = timerRunning || timerPaused || remainingSecs !== null;
 
   return (
     <div className={styles.sectionContent}>
@@ -583,132 +676,156 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours }
       </div>
 
       <div className={styles.scrollList}>
-        {/* Manual entry */}
-        <div className={styles.sessionCard}>
-          <p className={styles.sessionCardTitle}>Registrar sesión manual</p>
-          <div className={styles.timeInputRow}>
-            <div className={styles.timeInputGroup}>
-              <label className={styles.timeLabel}>Horas</label>
-              <input type="number" min={0} max={23} className={styles.timeInput} value={manualHours}
-                onChange={e => setManualHours(Math.max(0, parseInt(e.target.value) || 0))} />
-            </div>
-            <span className={styles.timeSep}>:</span>
-            <div className={styles.timeInputGroup}>
-              <label className={styles.timeLabel}>Minutos</label>
-              <input type="number" min={0} max={59} className={styles.timeInput} value={manualMinutes}
-                onChange={e => setManualMinutes(Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))} />
-            </div>
-            <button className={styles.saveBtn} onClick={handleManualSave} disabled={saving || (manualHours === 0 && manualMinutes === 0)}>
-              {saving ? 'Guardando...' : 'Guardar'}
-            </button>
-          </div>
-          {saveMsg && <p className={saveMsg.startsWith('✓') ? styles.successMsg : styles.errorText}>{saveMsg}</p>}
-        </div>
+        {/* Sessions row: Manual entry (left) + Countdown timer (right) */}
+        <div className={styles.sessionsRow}>
 
-        {/* Countdown timer */}
-        <div className={styles.sessionCard}>
-          <p className={styles.sessionCardTitle}>Cuenta atrás automática</p>
-          {!timerActive && (
-            <div className={styles.timerSetup}>
-              <div className={styles.timeInputRow}>
-                <div className={styles.timeInputGroup}>
-                  <label className={styles.timeLabel}>Horas</label>
-                  <input type="number" min={0} max={23} className={styles.timeInput} value={timerHours}
-                    onChange={e => setTimerHours(Math.max(0, parseInt(e.target.value) || 0))} />
-                </div>
-                <span className={styles.timeSep}>:</span>
-                <div className={styles.timeInputGroup}>
-                  <label className={styles.timeLabel}>Minutos</label>
-                  <input type="number" min={0} max={59} className={styles.timeInput} value={timerMins}
-                    onChange={e => setTimerMins(Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))} />
-                </div>
+          {/* ── Manual entry ── */}
+          <div className={styles.sessionCard}>
+            <p className={styles.sessionCardTitle}>Registrar sesión manual</p>
+            <div className={styles.timeInputRow}>
+              <div className={styles.timeInputGroup}>
+                <label className={styles.timeLabel}>Horas</label>
+                <input type="number" min={0} max={23} className={styles.timeInput} value={manualHours}
+                  onChange={e => setManualHours(Math.max(0, parseInt(e.target.value) || 0))} />
               </div>
-              <button className={styles.timerStartBtn} onClick={startTimer} disabled={timerHours === 0 && timerMins === 0}>
-                ▶ Iniciar cuenta atrás
+              <span className={styles.timeSep}>:</span>
+              <div className={styles.timeInputGroup}>
+                <label className={styles.timeLabel}>Minutos</label>
+                <input type="number" min={0} max={59} className={styles.timeInput} value={manualMinutes}
+                  onChange={e => setManualMinutes(Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))} />
+              </div>
+              <button className={styles.saveBtn} onClick={handleManualSave} disabled={saving || (manualHours === 0 && manualMinutes === 0)}>
+                {saving ? 'Guardando...' : 'Guardar'}
               </button>
             </div>
-          )}
+            {saveMsg && <p className={saveMsg.startsWith('✓') ? styles.successMsg : styles.errorText}>{saveMsg}</p>}
+          </div>
 
-          {timerActive && (
-            <div className={styles.timerRunning}>
-              <div className={styles.timerDisplay}>{pad(hh)}:{pad(mm)}:{pad(ss)}</div>
-              <div className={styles.timerProgressBar}>
-                <div className={styles.timerProgressFill} style={{ width: `${progressPct}%` }} />
-              </div>
-              {timerDone ? (
-                <div className={styles.timerDoneMsg}>
-                  <span>¡Sesión completada! 🎉</span>
-                  <div className={styles.timerActions}>
-                    <button className={styles.saveBtn} onClick={saveTimerSession} disabled={saving}>{saving ? 'Guardando...' : 'Guardar sesión'}</button>
-                    <button className={styles.cancelBtn} onClick={stopTimer}>Descartar</button>
+          {/* ── Countdown timer ── */}
+          <div className={styles.sessionCard}>
+            <p className={styles.sessionCardTitle}>Cuenta atrás automática</p>
+            {!timerActive && (
+              <div className={styles.timerSetup}>
+                <div className={styles.timeInputRow}>
+                  <div className={styles.timeInputGroup}>
+                    <label className={styles.timeLabel}>Horas</label>
+                    <input type="number" min={0} max={23} className={styles.timeInput} value={timerHours}
+                      onChange={e => setTimerHours(Math.max(0, parseInt(e.target.value) || 0))} />
+                  </div>
+                  <span className={styles.timeSep}>:</span>
+                  <div className={styles.timeInputGroup}>
+                    <label className={styles.timeLabel}>Minutos</label>
+                    <input type="number" min={0} max={59} className={styles.timeInput} value={timerMins}
+                      onChange={e => setTimerMins(Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))} />
                   </div>
                 </div>
-              ) : (
-                <div className={styles.timerActions}>
-                  {timerRunning
-                    ? <button className={styles.timerPauseBtn} onClick={pauseTimer}>⏸ Pausar</button>
-                    : <button className={styles.timerStartBtn} onClick={resumeTimer}>▶ Reanudar</button>
-                  }
-                  <button className={styles.timerStopBtn} onClick={saveTimerSession}>⏹ Parar y guardar</button>
-                  <button className={styles.cancelBtn} onClick={stopTimer}>✕ Cancelar</button>
+                <button className={styles.timerStartBtn} onClick={startTimer} disabled={timerHours === 0 && timerMins === 0}>
+                  ▶ Iniciar cuenta atrás
+                </button>
+              </div>
+            )}
+
+            {timerActive && (
+              <div className={styles.timerRunning}>
+                <div className={styles.timerDisplay}>{pad(hh)}:{pad(mm)}:{pad(ss)}</div>
+                <div className={styles.timerProgressBar}>
+                  <div className={styles.timerProgressFill} style={{ width: `${progressPct}%` }} />
                 </div>
-              )}
-            </div>
-          )}
+                {timerDone ? (
+                  <div className={styles.timerDoneMsg}>
+                    <span>¡Sesión completada! 🎉</span>
+                    <div className={styles.timerActions}>
+                      <button className={styles.saveBtn} onClick={saveTimerSession} disabled={saving}>{saving ? 'Guardando...' : 'Guardar sesión'}</button>
+                      <button className={styles.cancelBtn} onClick={stopTimer}>Descartar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.timerActions}>
+                    {timerRunning
+                      ? <button className={styles.timerPauseBtn} onClick={pauseTimer}>⏸ Pausar</button>
+                      : <button className={styles.timerStartBtn} onClick={resumeTimer}>▶ Reanudar</button>
+                    }
+                    <button className={styles.timerStopBtn} onClick={saveTimerSession}>⏹ Parar y guardar</button>
+                    <button className={styles.cancelBtn} onClick={stopTimer}>✕ Cancelar</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* Statistics */}
-        <div className={styles.sessionCard}>
+        <div className={styles.statsCard}>
           <p className={styles.sessionCardTitle}>Estadísticas</p>
           {!canShowStats ? (
             <p className={styles.statsNote}>Navega desde tu colección para ver las estadísticas detalladas.</p>
           ) : statsLoading ? (
-            <p className={styles.loadingText} style={{ padding: '20px 0' }}>Cargando estadísticas...</p>
-          ) : statsError ? (
-            <p className={styles.errorText}>{statsError}</p>
-          ) : stats ? (
+            <div className={styles.statsLoading}>
+              <div className={styles.statsSpinner} />
+              <span>Cargando estadísticas...</span>
+            </div>
+          ) : (
             <>
-              <div className={styles.statsGrid}>
-                <div className={styles.statBox}>
-                  <span className={styles.statValue}>{stats.sessionCount}</span>
-                  <span className={styles.statLabel}>Sesiones</span>
-                </div>
-                <div className={styles.statBox}>
-                  <span className={styles.statValue}>{totalHours.toFixed(1)}h</span>
-                  <span className={styles.statLabel}>Total</span>
-                </div>
-                <div className={styles.statBox}>
-                  <span className={styles.statValue}>{stats.avgHours.toFixed(1)}h</span>
-                  <span className={styles.statLabel}>Media/sesión</span>
-                </div>
-                <div className={styles.statBox}>
-                  <span className={styles.statValue}>{stats.favoriteDay ?? '—'}</span>
-                  <span className={styles.statLabel}>Día favorito</span>
-                </div>
-              </div>
-              {stats.last7Days.length > 0 && (
-                <div className={styles.chartSection}>
-                  <p className={styles.chartTitle}>Últimos 7 días</p>
-                  <div className={styles.barChart}>
-                    {stats.last7Days.map(d => {
-                      const pct = maxLast7 > 0 ? (d.hours / maxLast7) * 100 : 0;
-                      const date = new Date(d.date + 'T12:00:00');
-                      const label = dayLabels[date.getDay()];
-                      return (
-                        <div key={d.date} className={styles.barCol}>
-                          <div className={styles.barWrapper}>
-                            <div className={styles.bar} style={{ height: `${Math.max(pct, 2)}%` }} title={`${d.hours.toFixed(2)}h`} />
-                          </div>
-                          <span className={styles.barLabel}>{label}</span>
-                          {d.hours > 0 && <span className={styles.barValue}>{d.hours.toFixed(1)}</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
+              {statsError && (
+                <div className={styles.statsErrorBanner}>
+                  <span>⚠️ {statsError}</span>
+                  <button className={styles.retryBtn} onClick={loadStats}>Reintentar</button>
                 </div>
               )}
+              {stats && (
+                <>
+                  <div className={styles.statsGrid}>
+                    <div className={styles.statBox}>
+                      <span className={styles.statIcon}>⏱️</span>
+                      <span className={styles.statValue}>{totalHours.toFixed(1)}h</span>
+                      <span className={styles.statLabel}>Horas totales</span>
+                    </div>
+                    <div className={styles.statBox}>
+                      <span className={styles.statIcon}>🎮</span>
+                      <span className={styles.statValue}>{stats.sessionCount}</span>
+                      <span className={styles.statLabel}>Sesiones</span>
+                    </div>
+                    <div className={styles.statBox}>
+                      <span className={styles.statIcon}>📊</span>
+                      <span className={styles.statValue}>{stats.avgHours.toFixed(1)}h</span>
+                      <span className={styles.statLabel}>Media / sesión</span>
+                    </div>
+                    <div className={styles.statBox}>
+                      <span className={styles.statIcon}>📅</span>
+                      <span className={styles.statValue}>{stats.favoriteDay ?? '—'}</span>
+                      <span className={styles.statLabel}>Día más activo</span>
+                    </div>
+                  </div>
+                  {stats.last7Days.length > 0 && (
+                    <div className={styles.chartSection}>
+                      <p className={styles.chartTitle}>Últimos 7 días</p>
+                      <div className={styles.barChart}>
+                        {stats.last7Days.map(d => {
+                          const pct = maxLast7 > 0 ? (d.hours / maxLast7) * 100 : 0;
+                          const date = new Date(d.date + 'T12:00:00');
+                          const label = dayLabels[date.getDay()];
+                          return (
+                            <div key={d.date} className={styles.barCol}>
+                              <span className={styles.barValue}>{d.hours > 0 ? d.hours.toFixed(1) : ''}</span>
+                              <div className={styles.barArea}>
+                                <div
+                                  className={styles.bar}
+                                  style={{ height: `${Math.max(pct, 2)}%` }}
+                                  title={`${d.hours.toFixed(2)}h`}
+                                />
+                              </div>
+                              <span className={styles.barLabel}>{label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </>
-          ) : null}
+          )}
         </div>
       </div>
     </div>
@@ -723,13 +840,14 @@ export const ItemDetail = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>('notes');
 
   const state = (location.state as LocationState) ?? {};
   const itemName = state.itemName ?? 'Elemento';
   const itemImg = state.itemImg;
-  const idGame = state.idGame;
-  const initialTotalHours = state.totalHours ?? 0;
+
+  const [activeTab, setActiveTab] = useState<Tab>(state.activeTab ?? 'notes');
+  const [resolvedIdGame, setResolvedIdGame] = useState<number | undefined>(state.idGame);
+  const [resolvedTotalHours, setResolvedTotalHours] = useState<number>(state.totalHours ?? 0);
 
   const token = localStorage.getItem('auth_token') ?? '';
   const libraryId = parseInt(idLibrary ?? '0', 10);
@@ -740,6 +858,17 @@ export const ItemDetail = () => {
     : undefined;
 
   useEffect(() => { if (!isAuthenticated) navigate('/login'); }, [isAuthenticated, navigate]);
+
+  /* Always fetch fresh totalHours and idGame from backend so the badge and stats are accurate */
+  useEffect(() => {
+    if (!libraryId || !token) return;
+    sessionService.getTotalHoursByLibrary(token, libraryId)
+      .then(data => {
+        setResolvedTotalHours(data.totalHours);
+        if (data.idGame) setResolvedIdGame(data.idGame);
+      })
+      .catch(() => { /* silently keep navigation-state values */ });
+  }, [libraryId, token]);
 
   if (!isAuthenticated || !libraryId) return null;
 
@@ -758,21 +887,25 @@ export const ItemDetail = () => {
         <div className={styles.tabBar}>
           <button className={`${styles.tabBtn} ${activeTab === 'notes' ? styles.active : ''}`} onClick={() => setActiveTab('notes')}>Notas</button>
           <button className={`${styles.tabBtn} ${activeTab === 'checklist' ? styles.active : ''}`} onClick={() => setActiveTab('checklist')}>Checklist</button>
-          <button className={`${styles.tabBtn} ${activeTab === 'sessions' ? styles.active : ''}`} onClick={() => setActiveTab('sessions')}>Sesiones</button>
           <button className={styles.tabBtn} disabled title="Próximamente">Canvas</button>
+          <button className={`${styles.tabBtn} ${activeTab === 'sessions' ? styles.active : ''}`} onClick={() => setActiveTab('sessions')}>Sesiones</button>
         </div>
 
         {activeTab === 'notes' && <NotesSection idLibrary={libraryId} token={token} />}
         {activeTab === 'checklist' && <ChecklistSection idLibrary={libraryId} token={token} />}
-        {activeTab === 'sessions' && (
+
+        {/* Always mounted to keep timer alive when switching tabs */}
+        <div style={{ display: activeTab === 'sessions' ? 'flex' : 'none', flex: 1, overflow: 'hidden', flexDirection: 'column' }}>
           <SessionsSection
             idLibrary={libraryId}
-            idGame={idGame}
+            idGame={resolvedIdGame}
             idUser={idUser}
             token={token}
-            initialTotalHours={initialTotalHours}
+            initialTotalHours={resolvedTotalHours}
+            itemName={itemName}
+            itemImg={itemImg}
           />
-        )}
+        </div>
       </div>
     </div>
   );
