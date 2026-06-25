@@ -397,7 +397,10 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
 
       pathSubset.forEach(p => {
         let points = p.points;
-        if (isDraggingPath.current && (p.id === draggingPathId.current || selectedPathIdsRef.current.has(p.id))) {
+        const pathNeedsDelta = isDraggingPath.current
+          ? (p.id === draggingPathId.current || selectedPathIdsRef.current.has(p.id))
+          : (isDragging.current && selectedPathIdsRef.current.has(p.id));
+        if (pathNeedsDelta) {
           const { dx, dy } = pathLiveDelta.current;
           points = points.map(pt => ({ x: pt.x + dx, y: pt.y + dy }));
         }
