@@ -7,8 +7,15 @@ import { AddItem } from './pages/AddGame'
 import { ItemDetail } from './pages/ItemDetail'
 import { GlobalStats } from './pages/GlobalStats'
 import { Profile } from './pages/Profile'
+import { Settings } from './pages/Settings'
 import { timerStorage, computeRemaining, type StoredTimer } from './services/timer.storage'
+import { settingsStorage, applyAccentColor, applyReduceAnimations } from './services/settings.storage'
 import './App.css'
+
+// Apply persisted visual settings on startup
+const _initSettings = settingsStorage.get()
+applyAccentColor(_initSettings.accentColor, _initSettings.accentHover)
+applyReduceAnimations(_initSettings.reduceAnimations)
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -22,12 +29,14 @@ const GlobalTimerIndicator = () => {
     const t = timerStorage.get()
     return t ? computeRemaining(t) : 0
   })
+  const prevStatus = useRef<string | null>(timerStorage.get()?.status ?? null)
 
   useEffect(() => {
     /* Sync state from localStorage (called on event AND on each tick) */
     const sync = () => {
       const t = timerStorage.get()
       if (!t) {
+        prevStatus.current = null
         setTimer(null)
         setRemSecs(0)
         return
@@ -40,10 +49,22 @@ const GlobalTimerIndicator = () => {
           timerStorage.set({ ...t, status: 'done', pausedRemaining: 0 })
           return
         }
+        prevStatus.current = 'running'
         setTimer(t)
         setRemSecs(rem)
       } else {
         /* paused or done – keep timer object fresh, remSecs stays as pausedRemaining */
+        if (t.status === 'done' && prevStatus.current === 'running') {
+          /* Transition running → done: fire browser notification if enabled */
+          const { timerNotifications } = settingsStorage.get()
+          if (timerNotifications && 'Notification' in window && Notification.permission === 'granted') {
+            new Notification('¡Temporizador terminado!', {
+              body: t.itemName ? `Sesión de "${t.itemName}" completada.` : 'Tu sesión ha terminado.',
+              icon: t.itemImg ?? undefined,
+            })
+          }
+        }
+        prevStatus.current = t.status
         setTimer(t)
         setRemSecs(t.pausedRemaining)
       }
@@ -270,6 +291,7 @@ function App() {
         <Route path="/item/:idLibrary" element={<ItemDetail />} />
         <Route path="/stats" element={<GlobalStats />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
       <GlobalTimerIndicator />

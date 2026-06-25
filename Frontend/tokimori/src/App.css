@@ -8,3 +8,12 @@ body {
   background-color: #0f0f0f;
   color: #ffffff;
 }
+
+/* Applied by settings: reduce-animations */
+html.reduce-animations *,
+html.reduce-animations *::before,
+html.reduce-animations *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
