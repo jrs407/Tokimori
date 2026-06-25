@@ -7,7 +7,7 @@ import styles from './CanvasSection.module.css';
    TYPES
 ══════════════════════════════════════════════════════════════════════ */
 interface Point { x: number; y: number }
-interface DrawPath { id: string; points: Point[]; color: string; width: number }
+interface DrawPath { id: string; points: Point[]; color: string; width: number; drawAbove?: boolean }
 
 interface CanvasElement {
   id: string;
@@ -233,7 +233,8 @@ interface CanvasBoardViewProps {
 
 const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSidebar, onUpdate }: CanvasBoardViewProps) => {
   /* ── Canvas refs ─────────────────────────────────────────────── */
-  const canvasRef     = useRef<HTMLCanvasElement>(null);
+  const canvasRef      = useRef<HTMLCanvasElement>(null);
+  const canvasAboveRef = useRef<HTMLCanvasElement>(null);
   const containerRef  = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -267,6 +268,38 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
   const [objList, setObjList]               = useState<Objective[]>([]);
   const [pickerLoading, setPickerLoading]   = useState(false);
   const [formSaving, setFormSaving]         = useState(false);
+
+  /* ── Draw layer / task inputs / edit modal ───────────────────── */
+  const drawAboveKey = `tokimori_canvas_drawAbove_${idLibrary}`;
+  const [drawAbove, setDrawAboveState] = useState(() => {
+    try { return localStorage.getItem(`tokimori_canvas_drawAbove_${idLibrary}`) === 'true'; } catch { return false; }
+  });
+  const setDrawAbove = useCallback((v: boolean) => {
+    setDrawAboveState(v);
+    try { localStorage.setItem(drawAboveKey, String(v)); } catch {}
+  }, [drawAboveKey]);
+  const drawAboveRef = useRef(drawAbove);
+  useEffect(() => { drawAboveRef.current = drawAbove; }, [drawAbove]);
+  const [taskInputs, setTaskInputs]         = useState<Record<string, string>>({});
+  const [editingElem, setEditingElem]       = useState<CanvasElement | null>(null);
+  const [editNoteTitle, setEditNoteTitle]   = useState('');
+  const [editNoteText, setEditNoteText]     = useState('');
+  const [editClTitle, setEditClTitle]       = useState('');
+  const [editSaving, setEditSaving]         = useState(false);
+
+  /* ── Multi-select state ──────────────────────────────────────── */
+  const [selectedIds, setSelectedIds]       = useState<Set<string>>(new Set());
+  const selectedIdsRef                      = useRef<Set<string>>(new Set());
+  const [selectedPathIds, setSelectedPathIds] = useState<Set<string>>(new Set());
+  const selectedPathIdsRef                  = useRef<Set<string>>(new Set());
+  useEffect(() => { selectedPathIdsRef.current = selectedPathIds; renderCanvasRef.current(); }, [selectedPathIds]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [rubberRect, setRubberRect]     = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [multiDelta, setMultiDelta]     = useState<{ dx: number; dy: number } | null>(null);
+  const isRubberBanding                 = useRef(false);
+  const rubberStartScreen               = useRef<{ sx: number; sy: number } | null>(null);
+  const rubberEndScreen                 = useRef<{ ex: number; ey: number } | null>(null);
+  const elemsStartPositions             = useRef<Record<string, { x: number; y: number }>>({});
+  useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
 
   /* ── Tool ref (always current) ───────────────────────────────── */
   const toolRef     = useRef<Tool>('select');
@@ -341,63 +374,69 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
   ══════════════════════════════════════════════════════════════════ */
   const renderCanvasRef = useRef<(livePath?: Point[], eraserPos?: Point) => void>(() => {});
   renderCanvasRef.current = (livePath?: Point[], eraserPos?: Point) => {
-    const cv = canvasRef.current; if (!cv) return;
-    const ctx = cv.getContext('2d'); if (!ctx) return;
-    const { x: px, y: py } = panRef.current;
-    const z = zoomRef.current;
+    const renderSubset = (cv: HTMLCanvasElement | null, pathSubset: DrawPath[], activeLive: Point[] | undefined) => {
+      if (!cv) return;
+      const ctx = cv.getContext('2d'); if (!ctx) return;
+      const { x: px, y: py } = panRef.current;
+      const z = zoomRef.current;
 
-    ctx.clearRect(0, 0, cv.width, cv.height);
-    ctx.save();
-    ctx.translate(px, py);
-    ctx.scale(z, z);
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.scale(z, z);
 
-    const drawPth = (pts: Point[], color: string, w: number) => {
-      if (pts.length === 0) return;
-      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = w;
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      if (pts.length === 1) { ctx.arc(pts[0].x, pts[0].y, w / 2, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); return; }
-      ctx.moveTo(pts[0].x, pts[0].y);
-      pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
-      ctx.stroke();
+      const drawPth = (pts: Point[], color: string, w: number) => {
+        if (pts.length === 0) return;
+        ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = w;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        if (pts.length === 1) { ctx.arc(pts[0].x, pts[0].y, w / 2, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); return; }
+        ctx.moveTo(pts[0].x, pts[0].y);
+        pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.stroke();
+      };
+
+      pathSubset.forEach(p => {
+        let points = p.points;
+        if (isDraggingPath.current && (p.id === draggingPathId.current || selectedPathIdsRef.current.has(p.id))) {
+          const { dx, dy } = pathLiveDelta.current;
+          points = points.map(pt => ({ x: pt.x + dx, y: pt.y + dy }));
+        }
+        if (selectedPathRef.current === p.id || selectedPathIdsRef.current.has(p.id)) {
+          ctx.beginPath();
+          ctx.strokeStyle = 'rgba(102,126,234,0.5)';
+          ctx.lineWidth = p.width + 8;
+          ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          if (points.length === 1) {
+            ctx.arc(points[0].x, points[0].y, (p.width + 8) / 2, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(102,126,234,0.5)'; ctx.fill();
+          } else {
+            ctx.moveTo(points[0].x, points[0].y);
+            points.slice(1).forEach(pt => ctx.lineTo(pt.x, pt.y));
+            ctx.stroke();
+          }
+        }
+        drawPth(points, p.color, p.width);
+      });
+
+      if (activeLive && activeLive.length > 0) drawPth(activeLive, drawColorRef.current, brushSizeRef.current);
+
+      if (eraserPos) {
+        const r = (brushSizeRef.current * 3) / z;
+        ctx.beginPath();
+        ctx.arc(eraserPos.x, eraserPos.y, r, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 1.5 / z;
+        ctx.stroke();
+      }
+
+      ctx.restore();
     };
 
-    boardRef.current.paths.forEach(p => {
-      let points = p.points;
-      if (isDraggingPath.current && p.id === draggingPathId.current) {
-        const { dx, dy } = pathLiveDelta.current;
-        points = points.map(pt => ({ x: pt.x + dx, y: pt.y + dy }));
-      }
-      // Selection highlight
-      if (selectedPathRef.current === p.id) {
-        ctx.beginPath();
-        ctx.strokeStyle = 'rgba(102,126,234,0.5)';
-        ctx.lineWidth = p.width + 8;
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        if (points.length === 1) {
-          ctx.arc(points[0].x, points[0].y, (p.width + 8) / 2, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(102,126,234,0.5)'; ctx.fill();
-        } else {
-          ctx.moveTo(points[0].x, points[0].y);
-          points.slice(1).forEach(pt => ctx.lineTo(pt.x, pt.y));
-          ctx.stroke();
-        }
-      }
-      drawPth(points, p.color, p.width);
-    });
-
-    if (livePath && livePath.length > 0) drawPth(livePath, drawColorRef.current, brushSizeRef.current);
-
-    // Eraser cursor circle
-    if (eraserPos) {
-      const r = (brushSizeRef.current * 3) / z;
-      ctx.beginPath();
-      ctx.arc(eraserPos.x, eraserPos.y, r, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-      ctx.lineWidth = 1.5 / z;
-      ctx.stroke();
-    }
-
-    ctx.restore();
+    const allPaths = boardRef.current.paths;
+    const below = allPaths.filter(p => !p.drawAbove);
+    const above = allPaths.filter(p => p.drawAbove);
+    renderSubset(canvasRef.current,      below, drawAboveRef.current ? undefined : livePath);
+    renderSubset(canvasAboveRef.current, above, drawAboveRef.current ? livePath  : undefined);
   };
 
   // Stable wrapper for useEffect deps
@@ -411,7 +450,11 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
   useEffect(() => {
     const cv = canvasRef.current; const ct = containerRef.current;
     if (!cv || !ct) return;
-    const obs = new ResizeObserver(() => { cv.width = ct.clientWidth; cv.height = ct.clientHeight; renderCanvasRef.current(); });
+    const obs = new ResizeObserver(() => {
+      cv.width = ct.clientWidth; cv.height = ct.clientHeight;
+      const ca = canvasAboveRef.current; if (ca) { ca.width = ct.clientWidth; ca.height = ct.clientHeight; }
+      renderCanvasRef.current();
+    });
     obs.observe(ct);
     return () => obs.disconnect();
   }, []);
@@ -455,21 +498,35 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
       setPanState(newPan);
       return;
     }
+    if (isRubberBanding.current && rubberStartScreen.current) {
+      rubberEndScreen.current = { ex: e.clientX, ey: e.clientY };
+      const left   = Math.min(rubberStartScreen.current.sx, e.clientX);
+      const top    = Math.min(rubberStartScreen.current.sy, e.clientY);
+      const width  = Math.abs(e.clientX - rubberStartScreen.current.sx);
+      const height = Math.abs(e.clientY - rubberStartScreen.current.sy);
+      setRubberRect({ left, top, width, height });
+      return;
+    }
     if (isDraggingPath.current && draggingPathId.current && pathDragStart.current) {
-      pathLiveDelta.current = {
-        dx: (e.clientX - pathDragStart.current.sx) / zoomRef.current,
-        dy: (e.clientY - pathDragStart.current.sy) / zoomRef.current,
-      };
+      const pdx = (e.clientX - pathDragStart.current.sx) / zoomRef.current;
+      const pdy = (e.clientY - pathDragStart.current.sy) / zoomRef.current;
+      pathLiveDelta.current = { dx: pdx, dy: pdy };
       renderCanvasRef.current();
+      // Unified group: also move selected elements visually
+      if (selectedIdsRef.current.size > 0) setMultiDelta({ dx: pdx, dy: pdy });
       return;
     }
     if (isDragging.current && draggingId.current && dragStart.current && elemStart.current) {
-      const pos = {
-        x: elemStart.current.x + (e.clientX - dragStart.current.sx) / zoomRef.current,
-        y: elemStart.current.y + (e.clientY - dragStart.current.sy) / zoomRef.current,
-      };
+      const dx = (e.clientX - dragStart.current.sx) / zoomRef.current;
+      const dy = (e.clientY - dragStart.current.sy) / zoomRef.current;
+      const pos = { x: elemStart.current.x + dx, y: elemStart.current.y + dy };
       dragCurrentPos.current = pos;
       setDragLivePos({ id: draggingId.current, ...pos });
+      if (selectedIdsRef.current.size > 1 && selectedIdsRef.current.has(draggingId.current!)) {
+        setMultiDelta({ dx, dy });
+      }
+      // Unified group: also move selected paths visually
+      if (selectedPathIdsRef.current.size > 0) { pathLiveDelta.current = { dx, dy }; renderCanvasRef.current(); }
       return;
     }
     if (isResizing.current && resizingId.current && resizeStartSnap.current && resizeHandleType.current) {
@@ -483,18 +540,80 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     if (isPanning.current) {
       isPanning.current = false; panStart.current = null;
     }
+    if (isRubberBanding.current) {
+      isRubberBanding.current = false;
+      const start = rubberStartScreen.current!;
+      const end   = rubberEndScreen.current ?? { ex: start.sx, ey: start.sy };
+      rubberStartScreen.current = null;
+      rubberEndScreen.current   = null;
+      setRubberRect(null);
+
+      const screenLeft   = Math.min(start.sx, end.ex);
+      const screenTop    = Math.min(start.sy, end.ey);
+      const screenRight  = Math.max(start.sx, end.ex);
+      const screenBottom = Math.max(start.sy, end.ey);
+
+      if (Math.max(screenRight - screenLeft, screenBottom - screenTop) > 5) {
+        const cr = containerRef.current?.getBoundingClientRect();
+        const ox = cr?.left ?? 0;
+        const oy = cr?.top  ?? 0;
+        const cLeft   = (screenLeft   - ox - panRef.current.x) / zoomRef.current;
+        const cTop    = (screenTop    - oy - panRef.current.y) / zoomRef.current;
+        const cRight  = (screenRight  - ox - panRef.current.x) / zoomRef.current;
+        const cBottom = (screenBottom - oy - panRef.current.y) / zoomRef.current;
+
+        const selected = boardRef.current.elements.filter(el =>
+          el.x >= cLeft && el.y >= cTop &&
+          (el.x + el.width) <= cRight && (el.y + el.height) <= cBottom
+        );
+        const selPaths = boardRef.current.paths.filter(p => {
+          if (p.points.length === 0) return false;
+          const xs = p.points.map(pt => pt.x);
+          const ys = p.points.map(pt => pt.y);
+          return Math.min(...xs) >= cLeft && Math.min(...ys) >= cTop &&
+                 Math.max(...xs) <= cRight && Math.max(...ys) <= cBottom;
+        });
+
+        const ids = new Set(selected.map(el => el.id));
+        selectedIdsRef.current = ids;
+        setSelectedIds(ids);
+        setSelectedId(selected.length === 1 && selPaths.length === 0 ? selected[0].id : null);
+
+        const pIds = new Set(selPaths.map(p => p.id));
+        selectedPathIdsRef.current = pIds;
+        setSelectedPathIds(pIds);
+        if (selPaths.length > 0) setSelectedPathId(null);
+      }
+      return;
+    }
     if (isDraggingPath.current) {
       isDraggingPath.current = false;
       const pathId = draggingPathId.current;
       const { dx, dy } = pathLiveDelta.current;
       if (pathId && (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5)) {
         push();
-        onUpdate({ ...boardRef.current, paths: boardRef.current.paths.map(p =>
-          p.id === pathId ? { ...p, points: p.points.map(pt => ({ x: pt.x + dx, y: pt.y + dy })) } : p
-        )});
+        const isMultiPath = selectedPathIdsRef.current.size > 1 && selectedPathIdsRef.current.has(pathId);
+        const hasElemGroup = selectedIdsRef.current.size > 0;
+        const updatedPaths = boardRef.current.paths.map(p => {
+          if (isMultiPath ? selectedPathIdsRef.current.has(p.id) : p.id === pathId)
+            return { ...p, points: p.points.map(pt => ({ x: pt.x + dx, y: pt.y + dy })) };
+          return p;
+        });
+        const updatedElems = hasElemGroup
+          ? boardRef.current.elements.map(el => {
+              if (selectedIdsRef.current.has(el.id)) {
+                const s = elemsStartPositions.current[el.id];
+                return s ? { ...el, x: s.x + dx, y: s.y + dy } : el;
+              }
+              return el;
+            })
+          : boardRef.current.elements;
+        onUpdate({ ...boardRef.current, paths: updatedPaths, elements: updatedElems });
       }
       draggingPathId.current = null;
       pathLiveDelta.current = { dx: 0, dy: 0 };
+      setMultiDelta(null);
+      elemsStartPositions.current = {};
       renderCanvasRef.current();
       return;
     }
@@ -503,12 +622,32 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
       const pos = dragCurrentPos.current;
       if (pos && draggingId.current) {
         push();
-        onUpdate({ ...boardRef.current, elements: boardRef.current.elements.map(el =>
-          el.id === draggingId.current ? { ...el, x: pos.x, y: pos.y } : el
-        )});
+        const isMulti = selectedIdsRef.current.size > 1 && selectedIdsRef.current.has(draggingId.current!);
+        const dx = pos.x - (elemsStartPositions.current[draggingId.current!]?.x ?? pos.x);
+        const dy = pos.y - (elemsStartPositions.current[draggingId.current!]?.y ?? pos.y);
+        const hasPathGroup = selectedPathIdsRef.current.size > 0;
+        const updatedElems = boardRef.current.elements.map(el => {
+          if (el.id === draggingId.current) return { ...el, x: pos.x, y: pos.y };
+          if (isMulti && selectedIdsRef.current.has(el.id)) {
+            const s = elemsStartPositions.current[el.id];
+            return s ? { ...el, x: s.x + dx, y: s.y + dy } : el;
+          }
+          return el;
+        });
+        const updatedPaths = hasPathGroup
+          ? boardRef.current.paths.map(p =>
+              selectedPathIdsRef.current.has(p.id)
+                ? { ...p, points: p.points.map(pt => ({ x: pt.x + dx, y: pt.y + dy })) }
+                : p)
+          : boardRef.current.paths;
+        onUpdate({ ...boardRef.current, elements: updatedElems, paths: updatedPaths });
       }
       setDragLivePos(null);
+      setMultiDelta(null);
+      pathLiveDelta.current = { dx: 0, dy: 0 };
+      elemsStartPositions.current = {};
       draggingId.current = null; dragStart.current = null; elemStart.current = null; dragCurrentPos.current = null;
+      renderCanvasRef.current();
       return;
     }
     if (isResizing.current) {
@@ -540,6 +679,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
           points: livePoints.current,
           color: drawColorRef.current,
           width: brushSizeRef.current,
+          drawAbove: drawAboveRef.current,
         }]});
       }
       livePoints.current = [];
@@ -567,12 +707,20 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
       if (e.code === 'Space') { e.preventDefault(); spaceDown.current = true; }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedId) {
+        const hasElems = selectedIdsRef.current.size > 0;
+        const hasPaths = selectedPathIdsRef.current.size > 0;
+        if (hasElems || hasPaths) {
           push();
-          onUpdate({ ...boardRef.current, elements: boardRef.current.elements.filter(el => el.id !== selectedId) });
-          setSelectedId(null);
-        }
-        if (selectedPathId) {
+          const eIds = selectedIdsRef.current;
+          const pIds = selectedPathIdsRef.current;
+          onUpdate({
+            ...boardRef.current,
+            elements: hasElems ? boardRef.current.elements.filter(el => !eIds.has(el.id)) : boardRef.current.elements,
+            paths: hasPaths ? boardRef.current.paths.filter(p => !pIds.has(p.id)) : boardRef.current.paths,
+          });
+          if (hasElems) { setSelectedId(null); const e2 = new Set<string>(); setSelectedIds(e2); selectedIdsRef.current = e2; }
+          if (hasPaths) { const p2 = new Set<string>(); setSelectedPathIds(p2); selectedPathIdsRef.current = p2; }
+        } else if (selectedPathId) {
           push();
           onUpdate({ ...boardRef.current, paths: boardRef.current.paths.filter(p => p.id !== selectedPathId) });
           setSelectedPathId(null);
@@ -583,7 +731,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
     return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp); };
-  }, [selectedId, selectedPathId, push, undo, onUpdate]);
+  }, [selectedPathId, push, undo, onUpdate]);
 
   /* ── Context menu close ──────────────────────────────────────── */
   useEffect(() => {
@@ -624,8 +772,24 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
       const cp = screenToCanvas(e.clientX, e.clientY);
       const hitPath = hitTestPaths(cp.x, cp.y, boardRef.current.paths, zoomRef.current);
       if (hitPath) {
-        setSelectedPathId(hitPath);
-        setSelectedId(null);
+        const inPathGroup    = selectedPathIdsRef.current.has(hitPath);
+        const inUnifiedGroup = inPathGroup && selectedIdsRef.current.size > 0;
+        if (!inPathGroup) {
+          // Fresh single-path selection
+          setSelectedPathId(hitPath);
+          const ep = new Set<string>(); setSelectedPathIds(ep); selectedPathIdsRef.current = ep;
+          setSelectedId(null);
+          const ei = new Set<string>(); setSelectedIds(ei); selectedIdsRef.current = ei;
+        }
+        // If inUnifiedGroup: keep both selectedPathIds and selectedIds so all move together
+        // Record element start positions for unified group drag
+        if (inUnifiedGroup) {
+          const positions: Record<string, { x: number; y: number }> = {};
+          boardRef.current.elements.forEach(el => {
+            if (selectedIdsRef.current.has(el.id)) positions[el.id] = { x: el.x, y: el.y };
+          });
+          elemsStartPositions.current = positions;
+        }
         isDraggingPath.current = true;
         draggingPathId.current = hitPath;
         pathDragStart.current = { sx: e.clientX, sy: e.clientY };
@@ -634,6 +798,16 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
       }
       setSelectedId(null);
       setSelectedPathId(null);
+      const newIds = new Set<string>();
+      setSelectedIds(newIds);
+      selectedIdsRef.current = newIds;
+      const emptyPathIds = new Set<string>();
+      setSelectedPathIds(emptyPathIds);
+      selectedPathIdsRef.current = emptyPathIds;
+      // Start rubber band
+      isRubberBanding.current = true;
+      rubberStartScreen.current = { sx: e.clientX, sy: e.clientY };
+      rubberEndScreen.current = null;
     }
   };
 
@@ -670,13 +844,56 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
   const onElemDown = (e: React.MouseEvent, id: string) => {
     if (toolRef.current !== 'select') return;
     e.stopPropagation();
-    setSelectedId(id);
-    setSelectedPathId(null);
+
+    // If an above-layer path is at this click position it should take priority over the element
+    const cp = screenToCanvas(e.clientX, e.clientY);
+    const abovePaths = boardRef.current.paths.filter(p => p.drawAbove);
+    const hitAbove = hitTestPaths(cp.x, cp.y, abovePaths, zoomRef.current);
+    if (hitAbove) {
+      const isInPathGroup = selectedPathIdsRef.current.size > 1 && selectedPathIdsRef.current.has(hitAbove);
+      if (!isInPathGroup) {
+        setSelectedPathId(hitAbove);
+        const ep2 = new Set<string>(); setSelectedPathIds(ep2); selectedPathIdsRef.current = ep2;
+      }
+      setSelectedId(null);
+      const ei = new Set<string>(); setSelectedIds(ei); selectedIdsRef.current = ei;
+      isDraggingPath.current = true;
+      draggingPathId.current = hitAbove;
+      pathDragStart.current = { sx: e.clientX, sy: e.clientY };
+      pathLiveDelta.current = { dx: 0, dy: 0 };
+      return;
+    }
+
+    // "in group" = either multiple elements selected, or part of a unified elem+path group
+    const isInElemGroup    = selectedIdsRef.current.size > 1 && selectedIdsRef.current.has(id);
+    const isInUnifiedGroup = selectedIdsRef.current.has(id) && selectedPathIdsRef.current.size > 0;
+    const isInGroup        = isInElemGroup || isInUnifiedGroup;
+    if (!isInGroup) {
+      const newIds = new Set([id]);
+      setSelectedIds(newIds);
+      selectedIdsRef.current = newIds;
+      setSelectedId(id);
+      setSelectedPathId(null);
+      const epIds = new Set<string>(); setSelectedPathIds(epIds); selectedPathIdsRef.current = epIds;
+    }
+    // If isInGroup (including unified): keep selectedPathIds so paths move with elements
+
     isDragging.current = true;
     dragStart.current = { sx: e.clientX, sy: e.clientY };
     const el = boardRef.current.elements.find(el => el.id === id);
     if (el) { elemStart.current = { x: el.x, y: el.y }; dragCurrentPos.current = { x: el.x, y: el.y }; }
     draggingId.current = id;
+
+    // Record start positions for multi-drag and unified group drags
+    if (selectedIdsRef.current.size > 1 || selectedPathIdsRef.current.size > 0) {
+      const positions: Record<string, { x: number; y: number }> = {};
+      boardRef.current.elements.forEach(elem => {
+        if (selectedIdsRef.current.has(elem.id)) positions[elem.id] = { x: elem.x, y: elem.y };
+      });
+      elemsStartPositions.current = positions;
+    } else {
+      elemsStartPositions.current = {};
+    }
   };
 
   const onElemContextMenu = (e: React.MouseEvent, id: string, type: CanvasElement['type']) => {
@@ -684,6 +901,13 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     const cp = screenToCanvas(e.clientX, e.clientY);
     setSelectedId(id);
     setCtxMenu({ sx: e.clientX, sy: e.clientY, cx: cp.x, cy: cp.y, elemId: id, elemType: type, pathId: null });
+  };
+
+  const onElemDoubleClick = (e: React.MouseEvent, id: string) => {
+    if (toolRef.current !== 'select') return;
+    e.stopPropagation();
+    const elem = boardRef.current.elements.find(el => el.id === id);
+    if (elem && (elem.type === 'note' || elem.type === 'checklist')) openEditElem(elem);
   };
 
   const startResize = (e: React.MouseEvent, elemId: string, handle: ResizeHandle, x: number, y: number, w: number, h: number) => {
@@ -710,15 +934,17 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     onUpdate({ ...board, elements: board.elements.map(e => e.id === id ? { ...e, zIndex: maxZ + 1 } : e) });
   };
   const sendBack = (id: string) => {
-    const minZ = Math.min(0, ...board.elements.map(e => e.zIndex));
-    onUpdate({ ...board, elements: board.elements.map(e => e.id === id ? { ...e, zIndex: Math.max(0, minZ - 1) } : e) });
+    onUpdate({ ...board, elements: board.elements.map(e => e.id === id ? { ...e, zIndex: 0 } : e) });
   };
   const bringPathFront = (pathId: string) => {
     const path = board.paths.find(p => p.id === pathId); if (!path) return;
     push(); onUpdate({ ...board, paths: [...board.paths.filter(p => p.id !== pathId), path] });
   };
   const deleteElem = (id: string) => {
-    push(); onUpdate({ ...board, elements: board.elements.filter(e => e.id !== id) }); setSelectedId(null);
+    push();
+    onUpdate({ ...board, elements: board.elements.filter(e => e.id !== id) });
+    setSelectedId(null);
+    setSelectedIds(prev => { const s = new Set(prev); s.delete(id); selectedIdsRef.current = s; return s; });
   };
   const deletePath = (pathId: string) => {
     push(); onUpdate({ ...board, paths: board.paths.filter(p => p.id !== pathId) }); setSelectedPathId(null);
@@ -739,6 +965,13 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     onUpdate({ ...board, elements: board.elements.map(e => e.id === elemId ? { ...e, tasks: e.tasks?.map(t => ({ ...t, completed })) } : e) });
     try { if (completed) await objectivesService.markAllTasksCompleted(token, el.objId); else await objectivesService.markAllTasksIncomplete(token, el.objId); } catch {}
   };
+
+  const handleDeleteTask = useCallback(async (elemId: string, taskId: number) => {
+    onUpdate({ ...boardRef.current, elements: boardRef.current.elements.map(e =>
+      e.id === elemId ? { ...e, tasks: e.tasks?.filter(t => t.id !== taskId) } : e
+    )});
+    try { await objectivesService.deleteTask(token, taskId); } catch {}
+  }, [token, onUpdate]);
 
   /* ── Image upload ────────────────────────────────────────────── */
   const onImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -802,6 +1035,93 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     } catch {} finally { setFormSaving(false); }
   };
 
+  /* ── Refresh notes + checklist tasks when canvas tab is opened ── */
+  useEffect(() => {
+    const noteElems      = board.elements.filter(e => e.type === 'checklist' && e.objId === undefined ? false : e.type === 'note' && e.noteId !== undefined);
+    const checklistElems = board.elements.filter(e => e.type === 'checklist' && e.objId !== undefined);
+
+    const notePromises = board.elements
+      .filter(e => e.type === 'note' && e.noteId !== undefined)
+      .map(async el => {
+        try {
+          const all = await notesService.getNotesByLibrary(token, idLibrary);
+          const fresh = all.find(n => n.idNotes === el.noteId);
+          return fresh ? { id: el.id, noteTitle: fresh.title, noteText: fresh.text } : null;
+        } catch { return null; }
+      });
+
+    const clPromises = checklistElems.map(async el => {
+      try {
+        const raw = await objectivesService.getTasksByObjective(token, el.objId!);
+        return { id: el.id, tasks: raw.map(t => ({ id: t.idTask, title: t.title, completed: Boolean(t.completed) })) };
+      } catch { return null; }
+    });
+
+    Promise.all([...notePromises, ...clPromises]).then(results => {
+      const noteUpdates   = results.filter(r => r && 'noteTitle' in r) as { id: string; noteTitle: string; noteText: string }[];
+      const clUpdates     = results.filter(r => r && 'tasks' in r)     as { id: string; tasks: { id: number; title: string; completed: boolean }[] }[];
+      if (noteUpdates.length === 0 && clUpdates.length === 0) return;
+      onUpdate({ ...boardRef.current, elements: boardRef.current.elements.map(el => {
+        const nu = noteUpdates.find(x => x.id === el.id);
+        if (nu) return { ...el, noteTitle: nu.noteTitle, noteText: nu.noteText };
+        const cu = clUpdates.find(x => x.id === el.id);
+        if (cu) return { ...el, tasks: cu.tasks };
+        return el;
+      }) });
+    });
+    void noteElems;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ── Add task to canvas checklist ───────────────────────────────── */
+  const handleAddTask = useCallback(async (elemId: string, title: string) => {
+    const el = boardRef.current.elements.find(e => e.id === elemId);
+    if (!el?.objId || !title.trim()) return;
+    try {
+      const taskId = await objectivesService.createTask(token, el.objId, title.trim());
+      const newTask = { id: taskId, title: title.trim(), completed: false };
+      onUpdate({ ...boardRef.current, elements: boardRef.current.elements.map(e =>
+        e.id === elemId ? { ...e, tasks: [...(e.tasks ?? []), newTask] } : e
+      )});
+      setTaskInputs(prev => ({ ...prev, [elemId]: '' }));
+    } catch {}
+  }, [token, onUpdate]);
+
+  /* ── Edit element (note / checklist) ───────────────────────────── */
+  const openEditElem = useCallback((elem: CanvasElement) => {
+    setEditingElem(elem);
+    if (elem.type === 'note') {
+      setEditNoteTitle(elem.noteTitle ?? '');
+      setEditNoteText(elem.noteText ?? '');
+    } else if (elem.type === 'checklist') {
+      setEditClTitle(elem.objTitle ?? '');
+    }
+  }, []);
+
+  const saveNoteEdit = async () => {
+    if (!editingElem?.noteId || !editNoteTitle.trim() || !editNoteText.trim()) return;
+    setEditSaving(true);
+    try {
+      await notesService.updateNote(token, editingElem.noteId, { title: editNoteTitle.trim(), text: editNoteText.trim() });
+      onUpdate({ ...boardRef.current, elements: boardRef.current.elements.map(e =>
+        e.id === editingElem.id ? { ...e, noteTitle: editNoteTitle.trim(), noteText: editNoteText.trim() } : e
+      )});
+      setEditingElem(null);
+    } catch {} finally { setEditSaving(false); }
+  };
+
+  const saveClEdit = async () => {
+    if (!editingElem?.objId || !editClTitle.trim()) return;
+    setEditSaving(true);
+    try {
+      await objectivesService.updateObjective(token, editingElem.objId, { title: editClTitle.trim() });
+      onUpdate({ ...boardRef.current, elements: boardRef.current.elements.map(e =>
+        e.id === editingElem.id ? { ...e, objTitle: editClTitle.trim() } : e
+      )});
+      setEditingElem(null);
+    } catch {} finally { setEditSaving(false); }
+  };
+
   /* ── Cursor ──────────────────────────────────────────────────── */
   const activeCursor = isPanning.current ? 'grabbing' : spaceDown.current ? 'grab'
     : tool === 'draw' ? 'crosshair' : tool === 'erase' ? 'cell' : 'default';
@@ -810,7 +1130,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
 
   /* ── Selection overlay (resize handles) ─────────────────────── */
   const renderSelectionOverlay = () => {
-    if (!selectedId || dragLivePos) return null;
+    if (!selectedId || dragLivePos || selectedIds.size > 1) return null;
     const el = board.elements.find(e => e.id === selectedId);
     if (!el) return null;
     const lx = resizeLive?.id === el.id ? resizeLive.x : el.x;
@@ -888,6 +1208,18 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
           </div>
         )}
 
+        {tool === 'draw' && (
+          <div className={styles.toolGroup}>
+            <button className={`${styles.toolBtn} ${drawAbove ? styles.toolActive : ''}`}
+              onClick={() => setDrawAbove(v => !v)}
+              title={drawAbove ? 'Dibujo encima de elementos — click para poner debajo' : 'Dibujo debajo de elementos — click para poner encima'}>
+              <span className={styles.toolIcon}>{drawAbove ? '⬆' : '⬇'}</span>
+              <span className={styles.toolLabel}>{drawAbove ? 'Encima' : 'Debajo'}</span>
+            </button>
+            <div className={styles.toolDivider} />
+          </div>
+        )}
+
         {/* Insert: new + existing */}
         <div className={styles.toolGroup}>
           <button className={styles.toolBtn} onClick={() => { const c = visibleCenter(); setNoteForm({ title: '', text: '', cx: c.x, cy: c.y }); }} title="Nueva Nota">
@@ -916,11 +1248,33 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
           <button className={styles.toolBtn} onClick={undo} disabled={history.length === 0} title="Deshacer (Ctrl+Z)">
             <span className={styles.toolIcon}>↩</span><span className={styles.toolLabel}>Deshacer</span>
           </button>
-          {(selectedId || selectedPathId) && (
+          {(selectedIds.size > 0 || selectedPathIds.size > 0 || selectedPathId) && (
             <button className={`${styles.toolBtn} ${styles.toolDanger}`}
-              onClick={() => { if (selectedId) deleteElem(selectedId); if (selectedPathId) deletePath(selectedPathId); }}
-              title="Eliminar (Supr)">
-              <span className={styles.toolIcon}>🗑️</span><span className={styles.toolLabel}>Eliminar</span>
+              onClick={() => {
+                const hasElems = selectedIds.size > 0;
+                const hasPaths = selectedPathIds.size > 0;
+                if (hasElems || hasPaths) {
+                  push();
+                  const eIds = selectedIdsRef.current;
+                  const pIds = selectedPathIdsRef.current;
+                  onUpdate({
+                    ...boardRef.current,
+                    elements: hasElems ? boardRef.current.elements.filter(e => !eIds.has(e.id)) : boardRef.current.elements,
+                    paths: hasPaths ? boardRef.current.paths.filter(p => !pIds.has(p.id)) : boardRef.current.paths,
+                  });
+                  if (hasElems) { setSelectedId(null); const e2 = new Set<string>(); setSelectedIds(e2); selectedIdsRef.current = e2; }
+                  if (hasPaths) { const p2 = new Set<string>(); setSelectedPathIds(p2); selectedPathIdsRef.current = p2; }
+                } else if (selectedPathId) {
+                  deletePath(selectedPathId);
+                }
+              }}
+              title={`Eliminar (${selectedIds.size + (selectedPathIds.size || (selectedPathId ? 1 : 0))}) (Supr)`}>
+              <span className={styles.toolIcon}>🗑️</span>
+              <span className={styles.toolLabel}>
+                {(selectedIds.size + selectedPathIds.size) > 1
+                  ? `Elim. (${selectedIds.size + selectedPathIds.size})`
+                  : 'Eliminar'}
+              </span>
             </button>
           )}
           <button className={`${styles.toolBtn} ${styles.toolClear}`} onClick={clearBoard} title="Limpiar canvas">
@@ -929,7 +1283,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
         </div>
 
         <div className={styles.toolHint}>
-          <span>Pan: Rueda | Espacio+Arrastrar · Zoom: Ctrl+Rueda · Seleccionar trazo: clic</span>
+          <span>Pan: Rueda | Espacio+Drag · Zoom: Ctrl+Rueda · Multi-sel: arrastrar vacío</span>
         </div>
       </div>
 
@@ -942,11 +1296,17 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
         onMouseMove={onContainerMove}
         onContextMenu={onContainerContextMenu}
       >
-        <canvas ref={canvasRef} className={styles.drawCanvas} />
+        <canvas ref={canvasRef}      className={styles.drawCanvas} style={{ zIndex: 1 }} />
+        <canvas ref={canvasAboveRef} className={styles.drawCanvas} style={{ zIndex: 9990, pointerEvents: 'none' }} />
 
         {board.elements.map(el => {
-          const lx = resizeLive?.id === el.id ? resizeLive.x : dragLivePos?.id === el.id ? dragLivePos.x : el.x;
-          const ly = resizeLive?.id === el.id ? resizeLive.y : dragLivePos?.id === el.id ? dragLivePos.y : el.y;
+          const isMultiDragged = multiDelta !== null && selectedIds.has(el.id) && el.id !== draggingId.current;
+          const lx = resizeLive?.id === el.id ? resizeLive.x
+                   : dragLivePos?.id === el.id ? dragLivePos.x
+                   : isMultiDragged ? el.x + multiDelta!.dx : el.x;
+          const ly = resizeLive?.id === el.id ? resizeLive.y
+                   : dragLivePos?.id === el.id ? dragLivePos.y
+                   : isMultiDragged ? el.y + multiDelta!.dy : el.y;
           const lw = resizeLive?.id === el.id ? resizeLive.width : el.width;
           const lh = resizeLive?.id === el.id ? resizeLive.height : el.height;
           return (
@@ -956,15 +1316,40 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
               liveX={lx} liveY={ly}
               liveWidth={lw} liveHeight={lh}
               pan={pan} zoom={zoom}
-              isSelected={selectedId === el.id}
+              isSelected={selectedIds.has(el.id)}
               canInteract={tool === 'select'}
               onMouseDown={onElemDown}
+              onDoubleClick={onElemDoubleClick}
               onContextMenu={onElemContextMenu}
               onTaskToggle={handleTaskToggle}
               onMarkAll={handleMarkAll}
+              onAddTask={handleAddTask}
+              onDeleteTask={handleDeleteTask}
+              taskInput={taskInputs[el.id] ?? ''}
+              onSetTaskInput={v => setTaskInputs(prev => ({ ...prev, [el.id]: v }))}
             />
           );
         })}
+
+        {/* Rubber band selection rect */}
+        {rubberRect && (() => {
+          const cr = containerRef.current?.getBoundingClientRect();
+          return (
+            <div style={{
+              position: 'absolute',
+              left:   rubberRect.left   - (cr?.left ?? 0),
+              top:    rubberRect.top    - (cr?.top  ?? 0),
+              width:  rubberRect.width,
+              height: rubberRect.height,
+              border: '1.5px dashed rgba(102,126,234,0.85)',
+              background: 'rgba(102,126,234,0.08)',
+              pointerEvents: 'none',
+              zIndex: 20000,
+              boxSizing: 'border-box',
+              borderRadius: 2,
+            }} />
+          );
+        })()}
 
         {/* Selection overlay with resize handles */}
         {renderSelectionOverlay()}
@@ -987,12 +1372,27 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
           {ctxMenu.pathId ? (
             <>
               <p className={styles.ctxLabel}>Trazo</p>
-              <button className={styles.ctxItem} onClick={() => ctxAction(() => bringPathFront(ctxMenu.pathId!))}>↑ Traer al frente</button>
+              <button className={styles.ctxItem} onClick={() => ctxAction(() => {
+                bringPathFront(ctxMenu.pathId!);
+                onUpdate({ ...boardRef.current, paths: boardRef.current.paths.map(p => p.id === ctxMenu.pathId ? { ...p, drawAbove: true } : p) });
+              })}>↑ Encima de elementos</button>
+              <button className={styles.ctxItem} onClick={() => ctxAction(() => {
+                onUpdate({ ...boardRef.current, paths: boardRef.current.paths.map(p => p.id === ctxMenu.pathId ? { ...p, drawAbove: false } : p) });
+              })}>↓ Debajo de elementos</button>
               <div className={styles.ctxSep} />
               <button className={`${styles.ctxItem} ${styles.ctxDanger}`} onClick={() => ctxAction(() => deletePath(ctxMenu.pathId!))}>🗑️ Eliminar trazo</button>
             </>
           ) : ctxMenu.elemId ? (
             <>
+              {(ctxMenu.elemType === 'note' || ctxMenu.elemType === 'checklist') && (
+                <>
+                  <button className={styles.ctxItem} onClick={() => ctxAction(() => {
+                    const elem = boardRef.current.elements.find(e => e.id === ctxMenu.elemId);
+                    if (elem) openEditElem(elem);
+                  })}>✏️ Editar</button>
+                  <div className={styles.ctxSep} />
+                </>
+              )}
               <button className={styles.ctxItem} onClick={() => ctxAction(() => bringFront(ctxMenu.elemId!))}>↑ Traer al frente</button>
               <button className={styles.ctxItem} onClick={() => ctxAction(() => sendBack(ctxMenu.elemId!))}>↓ Enviar al fondo</button>
               {ctxMenu.elemType === 'checklist' && (
@@ -1114,6 +1514,54 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
           </div>
         </div>
       )}
+
+      {/* ══════════════ EDIT NOTE MODAL ══════════════ */}
+      {editingElem?.type === 'note' && (
+        <div className={styles.overlay} onClick={() => setEditingElem(null)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHead}>
+              <p className={styles.modalTitle}>✏️ Editar Nota</p>
+              <button className={styles.modalClose} onClick={() => setEditingElem(null)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <input className={styles.modalInput} placeholder="Título *" value={editNoteTitle} autoFocus
+                onChange={e => setEditNoteTitle(e.target.value)} />
+              <textarea className={styles.modalTextarea} placeholder="Contenido *" rows={6} value={editNoteText}
+                onChange={e => setEditNoteText(e.target.value)} />
+              <div className={styles.modalActions}>
+                <button className={styles.cancelBtn} onClick={() => setEditingElem(null)}>Cancelar</button>
+                <button className={styles.saveBtn} onClick={saveNoteEdit}
+                  disabled={editSaving || !editNoteTitle.trim() || !editNoteText.trim()}>
+                  {editSaving ? 'Guardando...' : 'Guardar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════ EDIT CHECKLIST MODAL ══════════════ */}
+      {editingElem?.type === 'checklist' && (
+        <div className={styles.overlay} onClick={() => setEditingElem(null)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHead}>
+              <p className={styles.modalTitle}>✏️ Editar Checklist</p>
+              <button className={styles.modalClose} onClick={() => setEditingElem(null)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <input className={styles.modalInput} placeholder="Título *" value={editClTitle} autoFocus
+                onChange={e => setEditClTitle(e.target.value)} />
+              <div className={styles.modalActions}>
+                <button className={styles.cancelBtn} onClick={() => setEditingElem(null)}>Cancelar</button>
+                <button className={styles.saveBtn} onClick={saveClEdit}
+                  disabled={editSaving || !editClTitle.trim()}>
+                  {editSaving ? 'Guardando...' : 'Guardar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1130,12 +1578,17 @@ interface ElementViewProps {
   isSelected: boolean;
   canInteract: boolean;
   onMouseDown: (e: React.MouseEvent, id: string) => void;
+  onDoubleClick: (e: React.MouseEvent, id: string) => void;
   onContextMenu: (e: React.MouseEvent, id: string, type: CanvasElement['type']) => void;
   onTaskToggle: (elemId: string, taskId: number, completed: boolean) => void;
   onMarkAll: (elemId: string, completed: boolean) => void;
+  onAddTask: (elemId: string, title: string) => void;
+  onDeleteTask: (elemId: string, taskId: number) => void;
+  taskInput: string;
+  onSetTaskInput: (v: string) => void;
 }
 
-const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, zoom, isSelected, canInteract, onMouseDown, onContextMenu, onTaskToggle, onMarkAll }: ElementViewProps) => {
+const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, zoom, isSelected, canInteract, onMouseDown, onDoubleClick, onContextMenu, onTaskToggle, onMarkAll, onAddTask, onDeleteTask, taskInput, onSetTaskInput }: ElementViewProps) => {
   const { id, type, zIndex } = element;
 
   const base: React.CSSProperties = {
@@ -1161,14 +1614,18 @@ const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, z
   if (type === 'note') return (
     <div style={{ ...base, background: '#2a2a3e', border: `2px solid ${isSelected ? '#667eea' : '#444'}` }}
       onMouseDown={e => onMouseDown(e, id)}
+      onDoubleClick={e => onDoubleClick(e, id)}
       onContextMenu={e => onContextMenu(e, id, type)}
     >
-      <div style={{ padding: '6px 10px', background: 'rgba(102,126,234,0.18)', borderBottom: '1px solid rgba(102,126,234,0.25)', flexShrink: 0 }}>
-        <span style={{ fontSize: 11, color: '#667eea', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>🗒 Nota</span>
+      <div style={{ padding: '6px 10px', background: 'rgba(102,126,234,0.18)', borderBottom: '1px solid rgba(102,126,234,0.25)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 11, color: '#667eea', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1 }}>🗒 Nota</span>
+        {canInteract && <span style={{ fontSize: 9, color: 'rgba(102,126,234,0.6)', letterSpacing: '0.04em' }}>doble clic para editar</span>}
       </div>
-      <div style={{ flex: 1, padding: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{element.noteTitle}</p>
-        <p style={{ margin: 0, fontSize: 12, color: '#b0b0c0', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical' }}>{element.noteText}</p>
+      <div style={{ flex: 1, padding: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0 }}>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>{element.noteTitle}</p>
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }} onWheel={e => e.stopPropagation()}>
+          <p style={{ margin: 0, fontSize: 12, color: '#b0b0c0', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{element.noteText}</p>
+        </div>
       </div>
     </div>
   );
@@ -1181,8 +1638,10 @@ const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, z
     return (
       <div style={{ ...base, background: '#2a2a3e', border: `2px solid ${isSelected ? '#667eea' : '#444'}` }}
         onMouseDown={e => onMouseDown(e, id)}
+        onDoubleClick={e => onDoubleClick(e, id)}
         onContextMenu={e => onContextMenu(e, id, type)}
       >
+        {/* Header */}
         <div style={{ padding: '6px 8px', background: 'rgba(46,204,113,0.12)', borderBottom: '1px solid rgba(46,204,113,0.25)', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: '#2ecc71', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>✅ {element.objTitle}</span>
           <span style={{ fontSize: 11, color: allDone ? '#2ecc71' : '#b0b0c0', fontWeight: 600, flexShrink: 0 }}>{done}/{tasks.length}</span>
@@ -1199,20 +1658,48 @@ const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, z
             </>
           )}
         </div>
-        <div style={{ flex: 1, padding: '6px 8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {tasks.length === 0 && <p style={{ margin: 0, fontSize: 12, color: '#b0b0c0', fontStyle: 'italic' }}>Sin tareas aún</p>}
-          {tasks.slice(0, 8).map(t => (
-            <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
+
+        {/* Task list — scrollable */}
+        <div style={{ flex: 1, padding: '4px 6px', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 2, minHeight: 0 }}
+          onWheel={e => e.stopPropagation()}>
+          {tasks.length === 0 && <p style={{ margin: 0, fontSize: 12, color: '#b0b0c0', fontStyle: 'italic', padding: '4px 2px' }}>Sin tareas aún</p>}
+          {tasks.map(t => (
+            <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 2px', borderRadius: 3 }}
+              className="taskRow">
               <input type="checkbox" checked={t.completed}
-                style={{ width: 14, height: 14, accentColor: '#667eea', cursor: 'pointer', flexShrink: 0 }}
+                style={{ width: 13, height: 13, accentColor: '#667eea', cursor: 'pointer', flexShrink: 0 }}
                 onMouseDown={e => e.stopPropagation()}
                 onChange={e => { e.stopPropagation(); onTaskToggle(id, t.id, !t.completed); }}
               />
               <span style={{ fontSize: 12, color: t.completed ? '#b0b0c0' : '#fff', textDecoration: t.completed ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{t.title}</span>
+              {canInteract && (
+                <button
+                  onMouseDown={e => e.stopPropagation()}
+                  onClick={e => { e.stopPropagation(); onDeleteTask(id, t.id); }}
+                  title="Eliminar tarea"
+                  style={{ width: 16, height: 16, background: 'transparent', border: 'none', color: 'rgba(231,76,60,0.6)', cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0, borderRadius: 2 }}>✕</button>
+              )}
             </div>
           ))}
-          {tasks.length > 8 && <p style={{ margin: '2px 0 0', fontSize: 11, color: '#b0b0c0' }}>+{tasks.length - 8} más...</p>}
         </div>
+
+        {/* Add-task input (only in select mode) */}
+        {canInteract && (
+          <div style={{ padding: '4px 6px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: 4, flexShrink: 0 }}
+            onMouseDown={e => e.stopPropagation()}>
+            <input
+              value={taskInput}
+              placeholder="Nueva tarea..."
+              onChange={e => onSetTaskInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onAddTask(id, taskInput); } }}
+              style={{ flex: 1, minWidth: 0, padding: '4px 7px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, color: '#fff', fontSize: 11, outline: 'none' }}
+            />
+            <button
+              onClick={e => { e.stopPropagation(); onAddTask(id, taskInput); }}
+              disabled={!taskInput.trim()}
+              style={{ padding: '4px 8px', background: 'rgba(46,204,113,0.2)', border: '1px solid rgba(46,204,113,0.4)', borderRadius: 4, color: '#2ecc71', fontSize: 11, cursor: 'pointer', flexShrink: 0, opacity: taskInput.trim() ? 1 : 0.4 }}>+</button>
+          </div>
+        )}
       </div>
     );
   }

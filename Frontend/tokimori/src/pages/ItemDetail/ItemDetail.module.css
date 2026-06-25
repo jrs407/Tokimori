@@ -36,6 +36,12 @@
   gap: 20px;
   margin-bottom: 32px;
   flex-shrink: 0;
+  overflow: hidden;
+  max-height: 200px;
+  opacity: 1;
+  transition: max-height 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.28s ease,
+              margin-bottom 0.38s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .itemImage {
@@ -72,6 +78,7 @@
   flex-shrink: 0;
   border-bottom: 2px solid var(--border-color);
   padding-bottom: 0;
+  transition: margin-bottom 0.38s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .tabBtn {
@@ -120,18 +127,15 @@
   margin: 0 -40px -40px;
 }
 
-/* ── Canvas fullscreen mode: hide item header, compact tab bar ── */
+/* ── Canvas fullscreen mode: collapse item header, compact tab bar ── */
 .canvasFull .itemHeader {
-  display: none;
+  max-height: 0;
+  opacity: 0;
+  margin-bottom: 0;
 }
 
 .canvasFull .tabBar {
-  margin-bottom: 0;
-  padding: 4px 0 0;
-}
-
-.canvasFull .canvasTabWrapper {
-  margin-top: 0;
+  margin-bottom: 4px;
 }
 
 /* ── Section header (title + add button) ── */
@@ -317,30 +321,21 @@
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
-.noteText.expanded {
-  display: block;
-  -webkit-line-clamp: unset;
+/* ── Character counter ── */
+.charCounter {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: right;
+  margin-top: -2px;
+  letter-spacing: 0.02em;
+  transition: color 0.2s;
+  user-select: none;
 }
 
-.noteExpandBtn {
-  margin-top: 8px;
-  background: none;
-  border: none;
-  color: var(--accent-color);
-  font-size: 13px;
-  cursor: pointer;
-  padding: 0;
-}
-
-.noteExpandBtn:hover {
-  text-decoration: underline;
-}
+.charWarn  { color: #ffc107; }
+.charDanger { color: #e74c3c; font-weight: 600; }
 
 /* ── Note Edit Form (inline) ── */
 .noteEditForm {

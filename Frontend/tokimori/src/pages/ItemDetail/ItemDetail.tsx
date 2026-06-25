@@ -34,6 +34,11 @@ const sortByPinnedThenTitle = <T extends { isPinned?: number | boolean; title: s
 ───────────────────────────────────────── */
 interface NotesSectionProps { idLibrary: number; token: string; }
 
+const NOTE_TITLE_MAX = 200;
+const NOTE_TEXT_MAX  = 3000;
+const noteCC = (len: number, max: number) =>
+  len >= max ? styles.charDanger : len >= Math.floor(max * 0.85) ? styles.charWarn : '';
+
 const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,7 +52,6 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editText, setEditText] = useState('');
-  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -141,8 +145,12 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
           <div className={styles.createPanel}>
             <p className={styles.createPanelTitle}>Nueva nota</p>
             <div className={styles.noteEditForm}>
-              <input className={styles.noteInput} placeholder="Título *" value={newTitle} onChange={e => setNewTitle(e.target.value)} autoFocus />
-              <textarea className={styles.noteTextarea} placeholder="Contenido *" value={newText} onChange={e => setNewText(e.target.value)} rows={4} />
+              <input className={styles.noteInput} placeholder="Título *" value={newTitle} maxLength={NOTE_TITLE_MAX}
+                onChange={e => setNewTitle(e.target.value)} autoFocus />
+              <span className={`${styles.charCounter} ${noteCC(newTitle.length, NOTE_TITLE_MAX)}`}>{newTitle.length} / {NOTE_TITLE_MAX}</span>
+              <textarea className={styles.noteTextarea} placeholder="Contenido *" value={newText} maxLength={NOTE_TEXT_MAX} rows={4}
+                onChange={e => setNewText(e.target.value)} />
+              <span className={`${styles.charCounter} ${noteCC(newText.length, NOTE_TEXT_MAX)}`}>{newText.length} / {NOTE_TEXT_MAX}</span>
               <div className={styles.formActions}>
                 <button className={styles.cancelBtn} onClick={() => setShowCreate(false)}>Cancelar</button>
                 <button className={styles.saveBtn} onClick={handleCreate} disabled={creating || !newTitle.trim() || !newText.trim()}>{creating ? 'Guardando...' : 'Guardar'}</button>
@@ -156,7 +164,6 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
           <div className={styles.emptyState}><span>No hay notas con ese filtro</span></div>
         ) : (
           displayedNotes.map(note => {
-            const isExpanded = expandedId === note.idNotes;
             const isEditing = editingId === note.idNotes;
             let cardClass = styles.noteCard;
             if (note.isPinned) cardClass += ' ' + styles.pinned;
@@ -174,22 +181,17 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
                 </div>
                 {isEditing ? (
                   <div className={styles.noteEditForm}>
-                    <input className={styles.noteInput} value={editTitle} onChange={e => setEditTitle(e.target.value)} />
-                    <textarea className={styles.noteTextarea} value={editText} onChange={e => setEditText(e.target.value)} rows={4} />
+                    <input className={styles.noteInput} value={editTitle} maxLength={NOTE_TITLE_MAX} onChange={e => setEditTitle(e.target.value)} />
+                    <span className={`${styles.charCounter} ${noteCC(editTitle.length, NOTE_TITLE_MAX)}`}>{editTitle.length} / {NOTE_TITLE_MAX}</span>
+                    <textarea className={styles.noteTextarea} value={editText} maxLength={NOTE_TEXT_MAX} rows={4} onChange={e => setEditText(e.target.value)} />
+                    <span className={`${styles.charCounter} ${noteCC(editText.length, NOTE_TEXT_MAX)}`}>{editText.length} / {NOTE_TEXT_MAX}</span>
                     <div className={styles.formActions}>
                       <button className={styles.cancelBtn} onClick={() => setEditingId(null)}>Cancelar</button>
                       <button className={styles.saveBtn} onClick={() => handleSaveEdit(note.idNotes)} disabled={!editTitle.trim() || !editText.trim()}>Guardar</button>
                     </div>
                   </div>
                 ) : (
-                  <>
-                    <p className={`${styles.noteText} ${isExpanded ? styles.expanded : ''}`}>{note.text}</p>
-                    {note.text.length > 150 && (
-                      <button className={styles.noteExpandBtn} onClick={() => setExpandedId(isExpanded ? null : note.idNotes)}>
-                        {isExpanded ? 'Ver menos' : 'Ver más'}
-                      </button>
-                    )}
-                  </>
+                  <p className={styles.noteText}>{note.text}</p>
                 )}
               </div>
             );
@@ -203,6 +205,12 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
 /* ─────────────────────────────────────────
    CHECKLIST SECTION
 ───────────────────────────────────────── */
+const OBJ_TITLE_MAX = 200;
+const OBJ_DESC_MAX  = 500;
+const TASK_MAX      = 200;
+const clCC = (len: number, max: number) =>
+  len >= max ? styles.charDanger : len >= Math.floor(max * 0.85) ? styles.charWarn : '';
+
 interface ChecklistSectionProps { idLibrary: number; token: string; }
 
 interface ObjectiveWithTasks extends Objective {
@@ -389,8 +397,10 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
           <div className={styles.createObjectivePanel}>
             <p className={styles.createPanelTitle}>Nuevo objetivo</p>
             <div className={styles.noteEditForm}>
-              <input className={styles.noteInput} placeholder="Título del objetivo *" value={newObjTitle} onChange={e => setNewObjTitle(e.target.value)} autoFocus />
-              <input className={styles.noteInput} placeholder="Descripción (opcional)" value={newObjDesc} onChange={e => setNewObjDesc(e.target.value)} />
+              <input className={styles.noteInput} placeholder="Título del objetivo *" value={newObjTitle} maxLength={OBJ_TITLE_MAX} onChange={e => setNewObjTitle(e.target.value)} autoFocus />
+              <span className={`${styles.charCounter} ${clCC(newObjTitle.length, OBJ_TITLE_MAX)}`}>{newObjTitle.length} / {OBJ_TITLE_MAX}</span>
+              <input className={styles.noteInput} placeholder="Descripción (opcional)" value={newObjDesc} maxLength={OBJ_DESC_MAX} onChange={e => setNewObjDesc(e.target.value)} />
+              <span className={`${styles.charCounter} ${clCC(newObjDesc.length, OBJ_DESC_MAX)}`}>{newObjDesc.length} / {OBJ_DESC_MAX}</span>
               <div className={styles.formActions}>
                 <button className={styles.cancelBtn} onClick={() => setShowCreate(false)}>Cancelar</button>
                 <button className={styles.saveBtn} onClick={handleCreateObjective} disabled={creating || !newObjTitle.trim()}>{creating ? 'Creando...' : 'Crear'}</button>
@@ -428,15 +438,19 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
                       className={styles.noteInput}
                       placeholder="Título *"
                       value={editObjTitle}
+                      maxLength={OBJ_TITLE_MAX}
                       onChange={e => setEditObjTitle(e.target.value)}
                       autoFocus
                     />
+                    <span className={`${styles.charCounter} ${clCC(editObjTitle.length, OBJ_TITLE_MAX)}`}>{editObjTitle.length} / {OBJ_TITLE_MAX}</span>
                     <input
                       className={styles.noteInput}
                       placeholder="Descripción (opcional)"
                       value={editObjDesc}
+                      maxLength={OBJ_DESC_MAX}
                       onChange={e => setEditObjDesc(e.target.value)}
                     />
+                    <span className={`${styles.charCounter} ${clCC(editObjDesc.length, OBJ_DESC_MAX)}`}>{editObjDesc.length} / {OBJ_DESC_MAX}</span>
                     <div className={styles.formActions}>
                       <button className={styles.cancelBtn} onClick={() => setEditingObjId(null)}>Cancelar</button>
                       <button className={styles.saveBtn} onClick={() => handleSaveEditObj(obj.idObjectives)} disabled={!editObjTitle.trim()}>Guardar</button>
@@ -465,9 +479,15 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
                         className={styles.taskInput}
                         placeholder="Añadir tarea..."
                         value={obj.taskInput}
+                        maxLength={TASK_MAX}
                         onChange={e => setObjectives(prev => prev.map(o => o.idObjectives === obj.idObjectives ? { ...o, taskInput: e.target.value } : o))}
                         onKeyDown={e => { if (e.key === 'Enter') handleAddTask(obj.idObjectives); }}
                       />
+                      {obj.taskInput.length > 0 && (
+                        <span className={`${styles.charCounter} ${clCC(obj.taskInput.length, TASK_MAX)}`} style={{ whiteSpace: 'nowrap', alignSelf: 'center', marginLeft: 4 }}>
+                          {obj.taskInput.length}/{TASK_MAX}
+                        </span>
+                      )}
                       <button className={styles.addTaskBtn} onClick={() => handleAddTask(obj.idObjectives)} disabled={!obj.taskInput.trim()}>Añadir</button>
                     </div>
                   </div>
