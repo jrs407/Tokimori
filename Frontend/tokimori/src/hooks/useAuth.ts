@@ -45,6 +45,29 @@ export const useAuth = () => {
     setError(null);
   }, []);
 
+  const updateProfile = useCallback(async (updates: { name?: string; email?: string; isPublic?: boolean }) => {
+    if (!user) throw new Error('No hay usuario autenticado');
+    const token = localStorage.getItem('auth_token');
+    if (!token) throw new Error('No se encontró el token');
+    await authService.updateProfile(token, user.id, updates);
+    setUser(prev => prev ? { ...prev, ...updates } : prev);
+  }, [user]);
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    if (!user) throw new Error('No hay usuario autenticado');
+    const token = localStorage.getItem('auth_token');
+    if (!token) throw new Error('No se encontró el token');
+    await authService.changePassword(token, user.id, currentPassword, newPassword);
+  }, [user]);
+
+  const deleteAccount = useCallback(async () => {
+    if (!user) throw new Error('No hay usuario autenticado');
+    const token = localStorage.getItem('auth_token');
+    if (!token) throw new Error('No se encontró el token');
+    await authService.deleteAccount(token, user.id);
+    setUser(null);
+  }, [user]);
+
   return {
     user,
     isAuthenticated: !!user,
@@ -53,5 +76,8 @@ export const useAuth = () => {
     login,
     register,
     logout,
+    updateProfile,
+    changePassword,
+    deleteAccount,
   };
 };

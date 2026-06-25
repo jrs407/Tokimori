@@ -288,11 +288,12 @@ export const deleteUser = async (req: AuthenticatedRequest, res: Response) => {
  */
 export const updateUser = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { userIdToUpdate, name, email, password, isAdmin, isPublic } = req.body as {
+    const { userIdToUpdate, name, email, password, currentPassword, isAdmin, isPublic } = req.body as {
       userIdToUpdate?: number;
       name?: string;
       email?: string;
       password?: string;
+      currentPassword?: string;
       isAdmin?: boolean;
       isPublic?: boolean;
     };
@@ -336,6 +337,13 @@ export const updateUser = async (req: AuthenticatedRequest, res: Response) => {
       if (!EMAIL_REGEX.test(email)) {
         return res.status(400).json({ message: 'Invalid email format.' });
       }
+      const [existingEmail] = await pool.query<RowDataPacket[]>(
+        'SELECT idUsers FROM users WHERE email = ? AND idUsers != ? LIMIT 1',
+        [email, userIdToUpdate]
+      );
+      if (existingEmail.length > 0) {
+        return res.status(409).json({ message: 'Email is already in use by another account.' });
+      }
       fieldsToUpdate.push('email = ?');
       values.push(email);
     }
@@ -343,6 +351,23 @@ export const updateUser = async (req: AuthenticatedRequest, res: Response) => {
     if (password) {
       if (password.length < MIN_PASSWORD_LENGTH) {
         return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
+      }
+      // When a non-admin user changes their own password, require current password verification
+      if (!isAdminUser || userIdToUpdate === authenticatedUserId) {
+        if (!currentPassword) {
+          return res.status(400).json({ message: 'Current password is required to set a new password.' });
+        }
+        const [rows] = await pool.query<RowDataPacket[]>(
+          'SELECT password FROM users WHERE idUsers = ? LIMIT 1',
+          [userIdToUpdate]
+        );
+        if (rows.length === 0) {
+          return res.status(404).json({ message: 'User not found.' });
+        }
+        const isCurrentValid = await bcrypt.compare(currentPassword, rows[0].password as string);
+        if (!isCurrentValid) {
+          return res.status(401).json({ message: 'Current password is incorrect.' });
+        }
       }
       const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10);
       const passwordHash = await bcrypt.hash(password, saltRounds);

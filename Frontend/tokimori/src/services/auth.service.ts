@@ -122,4 +122,47 @@ export const authService = {
    * Verifica si el usuario está autenticado
    */
   isAuthenticated: () => !!localStorage.getItem(TOKEN_KEY),
+
+  updateProfile: async (token: string, userId: string | number, updates: { name?: string; email?: string; isPublic?: boolean }): Promise<void> => {
+    const response = await fetch(`${AUTH_API_URL}/auth/updateUser`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ userIdToUpdate: Number(userId), ...updates }),
+    });
+    if (!response.ok) {
+      const err = (await response.json().catch(() => null)) as { message?: string } | null;
+      const msg = err?.message ?? '';
+      if (msg.includes('already in use')) throw new Error('Ese correo ya está en uso por otra cuenta.');
+      throw new Error(msg || 'Error al actualizar el perfil');
+    }
+    const currentUser = readUser();
+    if (currentUser) {
+      localStorage.setItem(USER_KEY, JSON.stringify({ ...currentUser, ...updates }));
+    }
+  },
+
+  changePassword: async (token: string, userId: string | number, currentPassword: string, newPassword: string): Promise<void> => {
+    const response = await fetch(`${AUTH_API_URL}/auth/updateUser`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ userIdToUpdate: Number(userId), currentPassword, password: newPassword }),
+    });
+    if (!response.ok) {
+      const err = (await response.json().catch(() => null)) as { message?: string } | null;
+      throw new Error(err?.message || 'Error al cambiar la contraseña');
+    }
+  },
+
+  deleteAccount: async (token: string, userId: string | number): Promise<void> => {
+    const response = await fetch(`${AUTH_API_URL}/auth/deleteUser`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ userIdToDelete: Number(userId) }),
+    });
+    if (!response.ok) {
+      const err = (await response.json().catch(() => null)) as { message?: string } | null;
+      throw new Error(err?.message || 'Error al eliminar la cuenta');
+    }
+    clearSession();
+  },
 };

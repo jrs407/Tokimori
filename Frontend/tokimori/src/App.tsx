@@ -6,6 +6,7 @@ import { Home } from './pages/Home'
 import { AddItem } from './pages/AddGame'
 import { ItemDetail } from './pages/ItemDetail'
 import { GlobalStats } from './pages/GlobalStats'
+import { Profile } from './pages/Profile'
 import { timerStorage, computeRemaining, type StoredTimer } from './services/timer.storage'
 import './App.css'
 
@@ -268,6 +269,7 @@ function App() {
         <Route path="/create" element={<AddItem />} />
         <Route path="/item/:idLibrary" element={<ItemDetail />} />
         <Route path="/stats" element={<GlobalStats />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
       <GlobalTimerIndicator />
