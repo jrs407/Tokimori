@@ -6,6 +6,7 @@ import { notesService, type Note } from '../../services/notes.service';
 import { objectivesService, type Objective, type Task } from '../../services/objectives.service';
 import { sessionService, type DayData } from '../../services/session.service';
 import { timerStorage, computeRemaining, computeProgress } from '../../services/timer.storage';
+import { CanvasSection } from './CanvasSection';
 import styles from './ItemDetail.module.css';
 
 type Tab = 'notes' | 'checklist' | 'sessions' | 'canvas';
@@ -897,6 +898,7 @@ export const ItemDetail = () => {
   const itemImg = state.itemImg;
 
   const [activeTab, setActiveTab] = useState<Tab>(state.activeTab ?? 'notes');
+  const [canvasFull, setCanvasFull] = useState(false);
   const [resolvedIdGame, setResolvedIdGame] = useState<number | undefined>(state.idGame);
   const [resolvedTotalHours, setResolvedTotalHours] = useState<number>(state.totalHours ?? 0);
 
@@ -926,7 +928,7 @@ export const ItemDetail = () => {
   return (
     <div className={styles.mainLayout}>
       <Sidebar />
-      <div className={styles.mainContent}>
+      <div className={`${styles.mainContent} ${canvasFull ? styles.canvasFull : ''}`}>
         <div className={styles.itemHeader}>
           {itemImg
             ? <img src={itemImg} alt={itemName} className={styles.itemImage} />
@@ -938,12 +940,17 @@ export const ItemDetail = () => {
         <div className={styles.tabBar}>
           <button className={`${styles.tabBtn} ${activeTab === 'notes' ? styles.active : ''}`} onClick={() => setActiveTab('notes')}>Notas</button>
           <button className={`${styles.tabBtn} ${activeTab === 'checklist' ? styles.active : ''}`} onClick={() => setActiveTab('checklist')}>Checklist</button>
-          <button className={styles.tabBtn} disabled title="Próximamente">Canvas</button>
+          <button className={`${styles.tabBtn} ${activeTab === 'canvas' ? styles.active : ''}`} onClick={() => setActiveTab('canvas')}>Canvas</button>
           <button className={`${styles.tabBtn} ${activeTab === 'sessions' ? styles.active : ''}`} onClick={() => setActiveTab('sessions')}>Sesiones</button>
         </div>
 
         {activeTab === 'notes' && <NotesSection idLibrary={libraryId} token={token} />}
         {activeTab === 'checklist' && <ChecklistSection idLibrary={libraryId} token={token} />}
+        {activeTab === 'canvas' && (
+          <div className={styles.canvasTabWrapper}>
+            <CanvasSection idLibrary={libraryId} token={token} onFullscreenChange={setCanvasFull} />
+          </div>
+        )}
 
         {/* Always mounted to keep timer alive when switching tabs */}
         <div style={{ display: activeTab === 'sessions' ? 'flex' : 'none', flex: 1, overflow: 'hidden', flexDirection: 'column' }}>

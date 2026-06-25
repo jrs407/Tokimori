@@ -111,6 +111,29 @@
   flex-direction: column;
 }
 
+/* ── Canvas tab wrapper (no padding, fills full height) ── */
+.canvasTabWrapper {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  margin: 0 -40px -40px;
+}
+
+/* ── Canvas fullscreen mode: hide item header, compact tab bar ── */
+.canvasFull .itemHeader {
+  display: none;
+}
+
+.canvasFull .tabBar {
+  margin-bottom: 0;
+  padding: 4px 0 0;
+}
+
+.canvasFull .canvasTabWrapper {
+  margin-top: 0;
+}
+
 /* ── Section header (title + add button) ── */
 .sectionHeader {
   display: flex;
