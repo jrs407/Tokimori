@@ -166,7 +166,8 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
           displayedNotes.map(note => {
             const isEditing = editingId === note.idNotes;
             let cardClass = styles.noteCard;
-            if (note.isPinned) cardClass += ' ' + styles.pinned;
+            if (note.isPinned && note.isFavorite) cardClass += ' ' + styles.pinnedFavorite;
+            else if (note.isPinned) cardClass += ' ' + styles.pinned;
             else if (note.isFavorite) cardClass += ' ' + styles.favorite;
             return (
               <div key={note.idNotes} className={cardClass}>
@@ -233,6 +234,7 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
   const [editingObjId, setEditingObjId] = useState<number | null>(null);
   const [editObjTitle, setEditObjTitle] = useState('');
   const [editObjDesc, setEditObjDesc] = useState('');
+  const [taskDragState, setTaskDragState] = useState<{ draggingId: number; overTaskId: number | null } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -377,6 +379,44 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
     }
   };
 
+  const handleTaskDragStart = (task: Task) => {
+    setTaskDragState({ draggingId: task.idTask, overTaskId: null });
+  };
+
+  const handleTaskDragOver = (e: React.DragEvent, taskId: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setTaskDragState(prev => prev && prev.overTaskId !== taskId ? { ...prev, overTaskId: taskId } : prev);
+  };
+
+  const handleTaskDrop = async (idObjectives: number, targetTaskId: number) => {
+    if (!taskDragState || taskDragState.draggingId === targetTaskId) {
+      setTaskDragState(null);
+      return;
+    }
+    const obj = objectives.find(o => o.idObjectives === idObjectives);
+    if (!obj) { setTaskDragState(null); return; }
+
+    const tasks = [...obj.tasks];
+    const fromIdx = tasks.findIndex(t => t.idTask === taskDragState.draggingId);
+    const toIdx   = tasks.findIndex(t => t.idTask === targetTaskId);
+    if (fromIdx === -1 || toIdx === -1) { setTaskDragState(null); return; }
+
+    const [moved] = tasks.splice(fromIdx, 1);
+    tasks.splice(toIdx, 0, moved);
+
+    setObjectives(prev => prev.map(o => o.idObjectives === idObjectives ? { ...o, tasks } : o));
+    setTaskDragState(null);
+
+    try {
+      await objectivesService.reorderTasks(token, idObjectives, tasks.map(t => t.idTask));
+    } catch {
+      setObjectives(prev => prev.map(o => o.idObjectives === idObjectives ? { ...o, tasks: obj.tasks } : o));
+    }
+  };
+
+  const handleTaskDragEnd = () => setTaskDragState(null);
+
   if (isLoading) return <p className={styles.loadingText}>Cargando checklist...</p>;
 
   return (
@@ -416,8 +456,12 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
           displayedObjectives.map(obj => {
             const completedCount = obj.tasks.filter(t => t.completed).length;
             const totalCount = obj.tasks.length;
+            let objCardClass = styles.objectiveCard;
+            if (obj.isPinned && obj.isFavorite) objCardClass += ' ' + styles.pinnedFavorite;
+            else if (obj.isPinned) objCardClass += ' ' + styles.pinned;
+            else if (obj.isFavorite) objCardClass += ' ' + styles.favorite;
             return (
-              <div key={obj.idObjectives} className={styles.objectiveCard}>
+              <div key={obj.idObjectives} className={objCardClass}>
                 <div className={styles.objectiveHeader} onClick={() => editingObjId !== obj.idObjectives && toggleObjective(obj.idObjectives)}>
                   <span className={`${styles.objectiveChevron} ${obj.isOpen ? styles.open : ''}`}>▶</span>
                   <div className={styles.objectiveInfo}>
@@ -427,9 +471,9 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
                   {obj.isOpen && totalCount > 0 && (
                     <span className={`${styles.objectiveProgress} ${completedCount === totalCount ? styles.progressDone : ''}`}>{completedCount}/{totalCount}</span>
                   )}
-                  <button className={styles.iconBtn} title="Editar" onClick={e => { e.stopPropagation(); editingObjId === obj.idObjectives ? setEditingObjId(null) : startEditObj(obj); }}>✏️</button>
                   <button className={`${styles.iconBtn} ${obj.isPinned ? styles.active : ''}`} title={obj.isPinned ? 'Despinnear' : 'Pinnear'} onClick={e => { e.stopPropagation(); handleToggleObjPin(obj); }}>📌</button>
                   <button className={`${styles.iconBtn} ${obj.isFavorite ? styles.active : ''}`} title={obj.isFavorite ? 'Quitar favorito' : 'Favorito'} onClick={e => { e.stopPropagation(); handleToggleObjFav(obj); }}>⭐</button>
+                  <button className={styles.iconBtn} title="Editar" onClick={e => { e.stopPropagation(); if (editingObjId === obj.idObjectives) setEditingObjId(null); else startEditObj(obj); }}>✏️</button>
                   <button className={styles.objectiveDeleteBtn} title="Eliminar objetivo" onClick={e => { e.stopPropagation(); handleDeleteObjective(obj.idObjectives); }}>🗑️</button>
                 </div>
                 {editingObjId === obj.idObjectives && (
@@ -468,7 +512,20 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
                     )}
                     {totalCount === 0 && <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '8px 0' }}>Sin tareas aún</p>}
                     {obj.tasks.map(task => (
-                      <div key={task.idTask} className={styles.taskRow}>
+                      <div
+                        key={task.idTask}
+                        className={[
+                          styles.taskRow,
+                          taskDragState?.draggingId === task.idTask ? styles.taskDragging : '',
+                          taskDragState?.overTaskId === task.idTask && taskDragState?.draggingId !== task.idTask ? styles.taskDragOver : '',
+                        ].join(' ')}
+                        draggable
+                        onDragStart={() => handleTaskDragStart(task)}
+                        onDragOver={e => handleTaskDragOver(e, task.idTask)}
+                        onDrop={() => handleTaskDrop(obj.idObjectives, task.idTask)}
+                        onDragEnd={handleTaskDragEnd}
+                      >
+                        <span className={styles.dragHandle} title="Arrastrar para reordenar">⠿</span>
                         <input type="checkbox" className={styles.taskCheckbox} checked={Boolean(task.completed)} onChange={() => handleToggleTask(obj.idObjectives, task)} />
                         <p className={`${styles.taskTitle} ${task.completed ? styles.done : ''}`}>{task.title}</p>
                         <button className={styles.taskDeleteBtn} onClick={() => handleDeleteTask(obj.idObjectives, task.idTask)}>✕</button>

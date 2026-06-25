@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS `tokimori`.`tasks` (
   `title` VARCHAR(255) NULL,
   `isFavorite` TINYINT(1) NOT NULL DEFAULT 0,
   `isPinned` TINYINT(1) NOT NULL DEFAULT 0,
+  `orderIndex` INT NOT NULL DEFAULT 0,
   PRIMARY KEY (`idTask`),
   CONSTRAINT `fk_Task_objectives1`
     FOREIGN KEY (`objectives_idObjectives`)

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { notesService, type Note } from '../../services/notes.service';
 import { objectivesService, type Objective } from '../../services/objectives.service';
+import { canvasService } from '../../services/canvas.service';
 import styles from './CanvasSection.module.css';
 
 /* ══════════════════════════════════════════════════════════════════
@@ -37,13 +38,6 @@ interface ChecklistFormState { title: string; desc: string; cx: number; cy: numb
 /* ══════════════════════════════════════════════════════════════════
    HELPERS
 ══════════════════════════════════════════════════════════════════════ */
-const storageKey = (id: number) => `tokimori_canvas_${id}`;
-const loadBoards = (id: number): CanvasBoard[] => {
-  try { const r = localStorage.getItem(storageKey(id)); return r ? JSON.parse(r) : []; }
-  catch { return []; }
-};
-const saveBoards = (id: number, boards: CanvasBoard[]) =>
-  localStorage.setItem(storageKey(id), JSON.stringify(boards));
 
 function distToSegment(p: Point, a: Point, b: Point): number {
   const dx = b.x - a.x, dy = b.y - a.y;
@@ -110,40 +104,150 @@ interface CanvasSectionProps {
 }
 
 export const CanvasSection = ({ idLibrary, token, onFullscreenChange }: CanvasSectionProps) => {
-  const [boards, setBoards]         = useState<CanvasBoard[]>(() => loadBoards(idLibrary));
-  const [activeBoardId, setActive]  = useState<string | null>(() => loadBoards(idLibrary)[0]?.id ?? null);
+  const [boards, setBoards]         = useState<CanvasBoard[]>([]);
+  const [activeBoardId, setActive]  = useState<string | null>(null);
   const [newName, setNewName]       = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameVal, setRenameVal]   = useState('');
   const [sidebarHidden, setSidebar] = useState(false);
+  const [loading, setLoading]       = useState(true);
+  const [creating, setCreating]     = useState(false);
+
+  const saveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  /* ── Load boards from DB on mount, migrate localStorage if needed ── */
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      try {
+        const dbBoards = await canvasService.getByLibrary(token, idLibrary);
+        if (cancelled) return;
+
+        if (dbBoards.length === 0) {
+          const stored = localStorage.getItem(`tokimori_canvas_${idLibrary}`);
+          if (stored) {
+            const localBoards: CanvasBoard[] = JSON.parse(stored);
+            const migrated: CanvasBoard[] = [];
+            for (const board of localBoards) {
+              try {
+                const id = await canvasService.create(token, idLibrary, board.name);
+                await canvasService.update(token, id, {
+                  contenido: JSON.stringify({ paths: board.paths, elements: board.elements }),
+                });
+                migrated.push({ id: id.toString(), name: board.name, paths: board.paths, elements: board.elements });
+              } catch {}
+            }
+            if (!cancelled) {
+              setBoards(migrated);
+              setActive(migrated[0]?.id ?? null);
+            }
+            localStorage.removeItem(`tokimori_canvas_${idLibrary}`);
+          }
+        } else {
+          const loaded = dbBoards.map(row => {
+            let paths: DrawPath[] = [];
+            let elements: CanvasElement[] = [];
+            try {
+              if (row.contenido) {
+                const parsed = JSON.parse(row.contenido) as { paths?: DrawPath[]; elements?: CanvasElement[] };
+                paths = parsed.paths ?? [];
+                elements = parsed.elements ?? [];
+              }
+            } catch {}
+            return { id: row.idcanvas.toString(), name: row.title, paths, elements };
+          });
+          if (!cancelled) {
+            setBoards(loaded);
+            setActive(loaded[0]?.id ?? null);
+            localStorage.removeItem(`tokimori_canvas_${idLibrary}`);
+          }
+        }
+      } catch (e) {
+        console.error('Error loading canvas:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [token, idLibrary]);
+
+  /* ── Flush pending saves on unmount ── */
+  useEffect(() => {
+    return () => {
+      saveTimers.current.forEach(t => clearTimeout(t));
+    };
+  }, []);
 
   const activeBoard = boards.find(b => b.id === activeBoardId) ?? null;
 
+  /* ── Debounced save of board content to DB ── */
+  const scheduleSave = useCallback((boardId: string, board: CanvasBoard) => {
+    const existing = saveTimers.current.get(boardId);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(async () => {
+      const idCanvas = parseInt(boardId);
+      if (isNaN(idCanvas)) return;
+      try {
+        await canvasService.update(token, idCanvas, {
+          contenido: JSON.stringify({ paths: board.paths, elements: board.elements }),
+        });
+      } catch (e) {
+        console.error('Error saving canvas to DB:', e);
+      }
+      saveTimers.current.delete(boardId);
+    }, 800);
+    saveTimers.current.set(boardId, timer);
+  }, [token]);
+
   const updateBoard = useCallback((id: string, fn: (b: CanvasBoard) => CanvasBoard) => {
-    setBoards(prev => {
-      const next = prev.map(b => b.id === id ? fn(b) : b);
-      saveBoards(idLibrary, next);
-      return next;
-    });
-  }, [idLibrary]);
+    setBoards(prev => prev.map(b => {
+      if (b.id !== id) return b;
+      const updated = fn(b);
+      scheduleSave(id, updated);
+      return updated;
+    }));
+  }, [scheduleSave]);
 
-  const createBoard = () => {
+  const createBoard = async () => {
     const name = newName.trim() || `Canvas ${boards.length + 1}`;
-    const board: CanvasBoard = { id: crypto.randomUUID(), name, paths: [], elements: [] };
-    const next = [...boards, board];
-    setBoards(next); saveBoards(idLibrary, next);
-    setActive(board.id); setNewName('');
+    setCreating(true);
+    try {
+      const id = await canvasService.create(token, idLibrary, name);
+      const board: CanvasBoard = { id: id.toString(), name, paths: [], elements: [] };
+      setBoards(prev => [...prev, board]);
+      setActive(board.id);
+      setNewName('');
+    } catch (e) {
+      console.error('Error creating canvas:', e);
+    } finally {
+      setCreating(false);
+    }
   };
 
-  const deleteBoard = (id: string) => {
+  const deleteBoard = async (id: string) => {
     if (!window.confirm('¿Eliminar este canvas?')) return;
-    const next = boards.filter(b => b.id !== id);
-    setBoards(next); saveBoards(idLibrary, next);
-    if (activeBoardId === id) setActive(next[0]?.id ?? null);
+    const idCanvas = parseInt(id);
+    try {
+      if (!isNaN(idCanvas)) await canvasService.delete(token, idCanvas);
+      const next = boards.filter(b => b.id !== id);
+      setBoards(next);
+      if (activeBoardId === id) setActive(next[0]?.id ?? null);
+    } catch (e) {
+      console.error('Error deleting canvas:', e);
+    }
   };
 
-  const commitRename = (id: string) => {
-    if (renameVal.trim()) updateBoard(id, b => ({ ...b, name: renameVal.trim() }));
+  const commitRename = async (id: string) => {
+    if (!renameVal.trim()) { setRenamingId(null); return; }
+    const idCanvas = parseInt(id);
+    try {
+      if (!isNaN(idCanvas)) await canvasService.update(token, idCanvas, { title: renameVal.trim() });
+      setBoards(prev => prev.map(b => b.id === id ? { ...b, name: renameVal.trim() } : b));
+    } catch (e) {
+      console.error('Error renaming canvas:', e);
+    }
     setRenamingId(null);
   };
 
@@ -161,11 +265,12 @@ export const CanvasSection = ({ idLibrary, token, onFullscreenChange }: CanvasSe
           <p className={styles.sidebarTitle}>Mis Canvas</p>
           <div className={styles.newBoardRow}>
             <input className={styles.newBoardInput} placeholder="Nombre del canvas..." value={newName}
-              onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createBoard()} />
-            <button className={styles.newBoardBtn} onClick={createBoard} title="Crear canvas">+</button>
+              onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createBoard()} disabled={creating} />
+            <button className={styles.newBoardBtn} onClick={createBoard} title="Crear canvas" disabled={creating}>{creating ? '...' : '+'}</button>
           </div>
           <div className={styles.boardList}>
-            {boards.length === 0 && <p className={styles.emptyBoards}>Sin canvas todavía</p>}
+            {loading && <p className={styles.emptyBoards}>Cargando...</p>}
+            {!loading && boards.length === 0 && <p className={styles.emptyBoards}>Sin canvas todavía</p>}
             {boards.map(b => (
               <div key={b.id}
                 className={`${styles.boardItem} ${b.id === activeBoardId ? styles.boardItemActive : ''}`}
@@ -257,6 +362,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
   const [dragLivePos, setDragLivePos] = useState<{ id: string; x: number; y: number } | null>(null);
   const [resizeLive, setResizeLive]   = useState<{ id: string; x: number; y: number; width: number; height: number } | null>(null);
   const [history, setHistory]         = useState<CanvasBoard[]>([]);
+  const [redoStack, setRedoStack]     = useState<CanvasBoard[]>([]);
 
   /* ── Context menu / modals ───────────────────────────────────── */
   const [ctxMenu, setCtxMenu]               = useState<CtxMenu | null>(null);
@@ -342,12 +448,26 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
   useEffect(() => { selectedPathRef.current = selectedPathId; renderCanvasRef.current(); }, [selectedPathId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── History ─────────────────────────────────────────────────── */
-  const push = useCallback(() => setHistory(h => [...h.slice(-19), boardRef.current]), []);
+  const push = useCallback(() => {
+    setRedoStack([]);
+    setHistory(h => [...h.slice(-19), boardRef.current]);
+  }, []);
+
   const undo = useCallback(() => {
     setHistory(h => {
       if (h.length === 0) return h;
+      setRedoStack(r => [...r.slice(-19), boardRef.current]);
       onUpdate(h[h.length - 1]);
       return h.slice(0, -1);
+    });
+  }, [onUpdate]);
+
+  const redo = useCallback(() => {
+    setRedoStack(r => {
+      if (r.length === 0) return r;
+      setHistory(h => [...h.slice(-19), boardRef.current]);
+      onUpdate(r[r.length - 1]);
+      return r.slice(0, -1);
     });
   }, [onUpdate]);
 
@@ -709,6 +829,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       if (e.code === 'Space') { e.preventDefault(); spaceDown.current = true; }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         const hasElems = selectedIdsRef.current.size > 0;
         const hasPaths = selectedPathIdsRef.current.size > 0;
@@ -1250,6 +1371,9 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
         <div className={styles.toolGroup}>
           <button className={styles.toolBtn} onClick={undo} disabled={history.length === 0} title="Deshacer (Ctrl+Z)">
             <span className={styles.toolIcon}>↩</span><span className={styles.toolLabel}>Deshacer</span>
+          </button>
+          <button className={styles.toolBtn} onClick={redo} disabled={redoStack.length === 0} title="Rehacer (Ctrl+Y)">
+            <span className={styles.toolIcon}>↪</span><span className={styles.toolLabel}>Rehacer</span>
           </button>
           {(selectedIds.size > 0 || selectedPathIds.size > 0 || selectedPathId) && (
             <button className={`${styles.toolBtn} ${styles.toolDanger}`}

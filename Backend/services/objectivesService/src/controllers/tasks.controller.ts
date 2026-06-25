@@ -42,9 +42,15 @@ export const createTask = async (req: AuthenticatedRequest, res: Response) => {
             return res.status(403).json({ message: 'You can only create tasks in your own objectives.' });
         }
 
+        const [orderRows] = await pool.query<RowDataPacket[]>(
+            'SELECT COALESCE(MAX(orderIndex), -1) + 1 AS nextOrder FROM tasks WHERE objectives_idObjectives = ?',
+            [idObjective]
+        );
+        const nextOrder = (orderRows[0] as RowDataPacket).nextOrder as number;
+
         const [result] = await pool.execute<ResultSetHeader>(
-            'INSERT INTO tasks (objectives_idObjectives, title) VALUES (?, ?)',
-            [idObjective, title]
+            'INSERT INTO tasks (objectives_idObjectives, title, orderIndex) VALUES (?, ?, ?)',
+            [idObjective, title, nextOrder]
         );
 
         return res.status(201).json({
@@ -229,10 +235,10 @@ export const getTasksByObjective = async (req: AuthenticatedRequest, res: Respon
         }
 
         const [tasks] = await pool.query<RowDataPacket[]>(
-            `SELECT idTask, objectives_idObjectives, completed, title, isFavorite, isPinned
+            `SELECT idTask, objectives_idObjectives, completed, title, isFavorite, isPinned, orderIndex
              FROM tasks
              WHERE objectives_idObjectives = ?
-             ORDER BY isPinned DESC, idTask ASC`,
+             ORDER BY orderIndex ASC, idTask ASC`,
             [idObjective]
         );
 
@@ -898,6 +904,57 @@ export const getTaskById = async (req: AuthenticatedRequest, res: Response) => {
 
     } catch (error) {
         console.error('Error fetching task:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+/**
+ * Reorder tasks within an objective
+ * Accepts an ordered array of task IDs and assigns orderIndex accordingly
+ */
+export const reorderTasks = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { idObjective, taskIds } = req.body as {
+            idObjective?: number;
+            taskIds?: number[];
+        };
+
+        const authenticatedUserId = req.user?.id;
+        const isAdmin = req.user?.isAdmin;
+
+        if (!authenticatedUserId) {
+            return res.status(401).json({ message: 'User not authenticated.' });
+        }
+        if (!idObjective || !Array.isArray(taskIds) || taskIds.length === 0) {
+            return res.status(400).json({ message: 'idObjective and taskIds array are required.' });
+        }
+
+        const [objectiveRows] = await pool.query<RowDataPacket[]>(
+            `SELECT l.Users_idUsers
+             FROM objectives o
+             JOIN library l ON o.library_idLibrary = l.idLibrary
+             WHERE o.idObjectives = ?`,
+            [idObjective]
+        );
+
+        if (objectiveRows.length === 0) {
+            return res.status(404).json({ message: 'Objective not found.' });
+        }
+        if (objectiveRows[0].Users_idUsers !== authenticatedUserId && !isAdmin) {
+            return res.status(403).json({ message: 'You can only reorder tasks in your own objectives.' });
+        }
+
+        for (let i = 0; i < taskIds.length; i++) {
+            await pool.execute(
+                'UPDATE tasks SET orderIndex = ? WHERE idTask = ? AND objectives_idObjectives = ?',
+                [i, taskIds[i], idObjective]
+            );
+        }
+
+        return res.status(200).json({ message: 'Tasks reordered successfully.' });
+
+    } catch (error) {
+        console.error('Error reordering tasks:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 };

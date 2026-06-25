@@ -240,6 +240,10 @@
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
 }
 
+.pinned {}
+.favorite {}
+.pinnedFavorite {}
+
 .noteCard.pinned {
   border-color: rgba(102, 126, 234, 0.4);
   background: rgba(102, 126, 234, 0.07);
@@ -248,6 +252,11 @@
 .noteCard.favorite {
   border-color: rgba(255, 193, 7, 0.4);
   background: rgba(255, 193, 7, 0.06);
+}
+
+.noteCard.pinnedFavorite {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(255, 193, 7, 0.15) 100%);
+  border-color: rgba(179, 160, 121, 0.4);
 }
 
 .noteCardTop {
@@ -455,6 +464,21 @@
   border-color: rgba(102, 126, 234, 0.4);
 }
 
+.objectiveCard.pinned {
+  border-color: rgba(102, 126, 234, 0.4);
+  background: rgba(102, 126, 234, 0.07);
+}
+
+.objectiveCard.favorite {
+  border-color: rgba(255, 193, 7, 0.4);
+  background: rgba(255, 193, 7, 0.06);
+}
+
+.objectiveCard.pinnedFavorite {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(255, 193, 7, 0.15) 100%);
+  border-color: rgba(179, 160, 121, 0.4);
+}
+
 .objectiveHeader {
   display: flex;
   align-items: center;
@@ -549,10 +573,34 @@
   padding: 8px 10px;
   border-radius: 6px;
   transition: background 0.15s;
+  cursor: default;
 }
 
 .taskRow:hover {
   background: rgba(255,255,255,0.04);
+}
+
+.taskDragging {
+  opacity: 0.35;
+}
+
+.taskDragOver {
+  border-top: 2px solid var(--accent-color);
+  margin-top: -2px;
+}
+
+.dragHandle {
+  font-size: 15px;
+  color: var(--text-secondary);
+  cursor: grab;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+  user-select: none;
+}
+
+.taskRow:hover .dragHandle {
+  opacity: 1;
 }
 
 .taskCheckbox {

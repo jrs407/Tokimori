@@ -17,6 +17,7 @@ export interface Task {
   completed: number | boolean;
   isFavorite?: number | boolean;
   isPinned?: number | boolean;
+  orderIndex?: number;
 }
 
 interface RawObjective {
@@ -158,5 +159,14 @@ export const objectivesService = {
       body: JSON.stringify({ idObjective }),
     });
     if (!response.ok) throw new Error('Error al descompletar las tareas');
+  },
+
+  reorderTasks: async (token: string, idObjective: number, taskIds: number[]): Promise<void> => {
+    const response = await fetch(`${OBJECTIVES_API_URL}/objectives/reorderTasks`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ idObjective, taskIds }),
+    });
+    if (!response.ok) throw new Error('Error al reordenar las tareas');
   },
 };

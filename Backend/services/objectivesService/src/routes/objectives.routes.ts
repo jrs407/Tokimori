@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createObjective, updateObjective, getObjectivesByLibrary, deleteObjective, getFavoriteObjectives, getPinnedObjectives, getObjectivesByUser, getObjective, searchObjectivesByTitle } from '../controllers/objectives.controller';
-import { createTask, deleteTask, updateTask, getTasksByObjective, getIncompleteTasksByObjective, getCompletedTasksByObjective, getFavoriteCompletedTasksByObjective, getFavoriteIncompleteTasksByObjective, getPinnedCompletedTasksByObjective, getPinnedIncompleteTasksByObjective, getAllFavoriteTasksByObjective, getAllPinnedTasksByObjective, searchTasksByTitle, getTaskById, deleteCompletedTasksByObjective, markAllTasksCompletedByObjective, markAllTasksIncompleteByObjective } from '../controllers/tasks.controller';
+import { createTask, deleteTask, updateTask, getTasksByObjective, getIncompleteTasksByObjective, getCompletedTasksByObjective, getFavoriteCompletedTasksByObjective, getFavoriteIncompleteTasksByObjective, getPinnedCompletedTasksByObjective, getPinnedIncompleteTasksByObjective, getAllFavoriteTasksByObjective, getAllPinnedTasksByObjective, searchTasksByTitle, getTaskById, deleteCompletedTasksByObjective, markAllTasksCompletedByObjective, markAllTasksIncompleteByObjective, reorderTasks } from '../controllers/tasks.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { adminMiddleware } from '../middlewares/adminMiddleware';
 
@@ -35,6 +35,6 @@ router.post('/tasksByObjective/pinned/incomplete', authMiddleware, getPinnedInco
 router.post('/tasksByObjective/all/favorite', authMiddleware, getAllFavoriteTasksByObjective);
 router.post('/tasksByObjective/all/pinned', authMiddleware, getAllPinnedTasksByObjective);
 router.post('/tasksByObjective/search', authMiddleware, searchTasksByTitle);
-
+router.patch('/reorderTasks', authMiddleware, reorderTasks);
 
 export default router;
