@@ -71,7 +71,7 @@ export const Sidebar = () => {
 
         {/* BOTTOM SECTION */}
         <div className={styles.bottomSection}>
-          <button className={styles.sidebarBtn} title="Estadísticas">
+          <button className={styles.sidebarBtn} onClick={() => handleNavigation('/stats')} title="Estadísticas">
             <span className={styles.icon}>📊</span>
             <span className={styles.label}>Estadísticas</span>
           </button>

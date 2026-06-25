@@ -7,11 +7,14 @@ import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
 /**
  * Create a new session record for a specific library entry
  */
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
 export const createSession = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { idLibrary, minutes } = req.body as {
+    const { idLibrary, minutes, date } = req.body as {
       idLibrary?: number;
       minutes?: number;
+      date?: string;
     };
 
     const authenticatedUserId = req.user?.id;
@@ -23,6 +26,10 @@ export const createSession = async (req: AuthenticatedRequest, res: Response) =>
 
     if (!idLibrary || minutes === undefined) {
       return res.status(400).json({ message: 'idLibrary and minutes are required.' });
+    }
+
+    if (date !== undefined && !DATE_REGEX.test(date)) {
+      return res.status(400).json({ message: 'date must be in YYYY-MM-DD format.' });
     }
 
     const [libraryRows] = await pool.query<RowDataPacket[]>(
@@ -41,10 +48,15 @@ export const createSession = async (req: AuthenticatedRequest, res: Response) =>
       return res.status(403).json({ message: 'You can only create sessions in your own library.' });
     }
 
-    const [result] = await pool.execute<ResultSetHeader>(
-      'INSERT INTO sessions (library_idLibrary, minutes) VALUES (?, ?)',
-      [idLibrary, minutes]
-    );
+    const [result] = date
+      ? await pool.execute<ResultSetHeader>(
+          'INSERT INTO sessions (library_idLibrary, minutes, date) VALUES (?, ?, ?)',
+          [idLibrary, minutes, date]
+        )
+      : await pool.execute<ResultSetHeader>(
+          'INSERT INTO sessions (library_idLibrary, minutes) VALUES (?, ?)',
+          [idLibrary, minutes]
+        );
 
     // update library totalHours (stored in hours) by adding minutes/60
     await pool.execute(
@@ -481,12 +493,12 @@ export const getFavoriteDayByUserGame = async (req: AuthenticatedRequest, res: R
     }
 
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT DAYOFWEEK(s.date) AS dayOfWeek, AVG(s.minutes) AS avgMinutes
+      `SELECT DAYOFWEEK(s.date) AS dayOfWeek, SUM(s.minutes) AS totalMinutes
        FROM sessions s
        JOIN library l ON s.library_idLibrary = l.idLibrary
        WHERE l.Users_idUsers = ? AND l.Games_idGames = ?
        GROUP BY DAYOFWEEK(s.date)
-       ORDER BY avgMinutes DESC
+       ORDER BY totalMinutes DESC
        LIMIT 1`,
       [idUser, idGame]
     );
@@ -533,12 +545,12 @@ export const getFavoriteDayByUser = async (req: AuthenticatedRequest, res: Respo
     }
 
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT DAYOFWEEK(s.date) AS dayOfWeek, AVG(s.minutes) AS avgMinutes
+      `SELECT DAYOFWEEK(s.date) AS dayOfWeek, SUM(s.minutes) AS totalMinutes
        FROM sessions s
        JOIN library l ON s.library_idLibrary = l.idLibrary
        WHERE l.Users_idUsers = ?
        GROUP BY DAYOFWEEK(s.date)
-       ORDER BY avgMinutes DESC
+       ORDER BY totalMinutes DESC
        LIMIT 1`,
       [idUser]
     );
@@ -687,18 +699,19 @@ export const getLast7DaysByUser = async (req: AuthenticatedRequest, res: Respons
     }
 
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT DATE(s.date) AS dayDate, IFNULL(SUM(s.minutes),0) AS totalMinutes
+      `SELECT DATE_FORMAT(s.date, '%Y-%m-%d') AS dayDate, IFNULL(SUM(s.minutes),0) AS totalMinutes
        FROM sessions s
        JOIN library l ON s.library_idLibrary = l.idLibrary
        WHERE l.Users_idUsers = ? AND s.date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-       GROUP BY DATE(s.date)
-       ORDER BY DATE(s.date)`,
+       GROUP BY DATE_FORMAT(s.date, '%Y-%m-%d')
+       ORDER BY DATE_FORMAT(s.date, '%Y-%m-%d')`,
       [idUser]
     );
 
     const map: Record<string, number> = {};
     for (const r of rows) {
-      map[r.dayDate as string] = Number(r.totalMinutes ?? 0);
+      const key = typeof r.dayDate === 'string' ? r.dayDate : String(r.dayDate).slice(0, 10);
+      map[key] = Number(r.totalMinutes ?? 0);
     }
 
     const result: Array<{ date: string; hours: number }> = [];

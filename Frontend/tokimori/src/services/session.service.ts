@@ -9,12 +9,13 @@ export const sessionService = {
   createSession: async (
     token: string,
     idLibrary: number,
-    minutes: number
+    minutes: number,
+    date?: string
   ): Promise<{ sessionId: number; totalHours: number }> => {
     const response = await fetch(`${SESSIONS_API_URL}/sessions/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ idLibrary, minutes }),
+      body: JSON.stringify({ idLibrary, minutes, ...(date ? { date } : {}) }),
     });
     if (!response.ok) {
       const err = await response.json().catch(() => null) as { message?: string } | null;
@@ -84,5 +85,85 @@ export const sessionService = {
     if (!response.ok) throw new Error('Error al obtener los últimos 7 días');
     const data = await response.json() as { last7Days: DayData[] };
     return data.last7Days ?? [];
+  },
+
+  /* ── Global (all games) endpoints ── */
+
+  getGlobalSessionCount: async (token: string, idUser: number): Promise<number> => {
+    const response = await fetch(`${SESSIONS_API_URL}/sessions/countByUser`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ idUser }),
+    });
+    if (!response.ok) throw new Error('Error al obtener el número de sesiones globales');
+    const data = await response.json() as { count: number };
+    return Number(data.count ?? 0);
+  },
+
+  getGlobalAverageHours: async (token: string, idUser: number): Promise<number> => {
+    const response = await fetch(`${SESSIONS_API_URL}/sessions/avgByUser`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ idUser }),
+    });
+    if (!response.ok) throw new Error('Error al obtener el promedio global');
+    const data = await response.json() as { avgHours: number };
+    return Number(data.avgHours ?? 0);
+  },
+
+  getGlobalFavoriteDay: async (
+    token: string,
+    idUser: number
+  ): Promise<{ dayOfWeek: number; dayName: string } | null> => {
+    const response = await fetch(`${SESSIONS_API_URL}/sessions/favoriteDayByUser`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ idUser }),
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error('Error al obtener el día favorito global');
+    const data = await response.json() as { dayOfWeek: number; dayName?: string };
+    const localNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const dayName = localNames[data.dayOfWeek - 1] ?? data.dayName ?? '—';
+    return { dayOfWeek: data.dayOfWeek, dayName };
+  },
+
+  getGlobalLast7Days: async (token: string, idUser: number): Promise<DayData[]> => {
+    const response = await fetch(`${SESSIONS_API_URL}/sessions/last7ByUser`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ idUser }),
+    });
+    if (!response.ok) throw new Error('Error al obtener los últimos 7 días globales');
+    const data = await response.json() as { last7Days: DayData[] };
+    return data.last7Days ?? [];
+  },
+
+  getMostPlayedGame: async (
+    token: string,
+    idUser: number
+  ): Promise<{ idGame: number; gameName: string; totalHours: number; totalMinutes: number } | null> => {
+    const response = await fetch(`${SESSIONS_API_URL}/sessions/mostPlayedGameByUser`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ idUser }),
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error('Error al obtener el juego más jugado');
+    return response.json() as Promise<{ idGame: number; gameName: string; totalHours: number; totalMinutes: number }>;
+  },
+
+  getGlobalDailyAverage: async (
+    token: string,
+    idUser: number
+  ): Promise<Array<{ dayOfWeek: number; avgHours: number }>> => {
+    const response = await fetch(`${SESSIONS_API_URL}/sessions/dailyAvgByUser`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ idUser }),
+    });
+    if (!response.ok) throw new Error('Error al obtener el promedio diario global');
+    const data = await response.json() as { dailyAverages: Array<{ dayOfWeek: number; avgHours: number }> };
+    return data.dailyAverages ?? [];
   },
 };

@@ -580,9 +580,15 @@ interface Stats {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours, itemName, itemImg }: SessionsSectionProps) => {
   const [manualHours, setManualHours] = useState(0);
   const [manualMinutes, setManualMinutes] = useState(30);
+  const [manualDate, setManualDate] = useState(todayStr);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
   const [totalHours, setTotalHours] = useState(initialTotalHours);
@@ -688,11 +694,11 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours, 
   useEffect(() => { loadStats(); }, [loadStats]);
 
   /* ── Save session helper ── */
-  const saveSession = async (minutes: number) => {
+  const saveSession = async (minutes: number, date?: string) => {
     if (minutes <= 0) return;
     setSaving(true);
     try {
-      const result = await sessionService.createSession(token, idLibrary, minutes);
+      const result = await sessionService.createSession(token, idLibrary, minutes, date);
       setTotalHours(Number(result.totalHours));
       setSaveMsg(`✓ Sesión de ${minutes} min guardada`);
       setTimeout(() => setSaveMsg(''), 3000);
@@ -703,7 +709,7 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours, 
     } finally { setSaving(false); }
   };
 
-  const handleManualSave = () => saveSession(manualHours * 60 + manualMinutes);
+  const handleManualSave = () => saveSession(manualHours * 60 + manualMinutes, manualDate);
 
   /* ── Timer controls ── */
   const startTimer = () => {
@@ -823,7 +829,20 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours, 
                 <input type="number" min={0} max={59} className={styles.timeInput} value={manualMinutes}
                   onChange={e => setManualMinutes(Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))} />
               </div>
-              <button className={styles.saveBtn} onClick={handleManualSave} disabled={saving || (manualHours === 0 && manualMinutes === 0)}>
+            </div>
+            <div className={styles.timeInputRow} style={{ marginTop: 8 }}>
+              <div className={styles.timeInputGroup} style={{ flex: 1 }}>
+                <label className={styles.timeLabel}>Día</label>
+                <input
+                  type="date"
+                  className={styles.timeInput}
+                  style={{ width: '100%' }}
+                  value={manualDate}
+                  max={todayStr()}
+                  onChange={e => setManualDate(e.target.value)}
+                />
+              </div>
+              <button className={styles.saveBtn} onClick={handleManualSave} disabled={saving || (manualHours === 0 && manualMinutes === 0) || !manualDate}>
                 {saving ? 'Guardando...' : 'Guardar'}
               </button>
             </div>
@@ -911,7 +930,7 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours, 
                       <span className={styles.statLabel}>Horas totales</span>
                     </div>
                     <div className={styles.statBox}>
-                      <span className={styles.statIcon}>🎮</span>
+                      <span className={styles.statIcon}>🗓️</span>
                       <span className={styles.statValue}>{stats.sessionCount}</span>
                       <span className={styles.statLabel}>Sesiones</span>
                     </div>
