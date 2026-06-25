@@ -4,8 +4,7 @@ export const isValidEmail = (email: string): boolean => {
 };
 
 export const isValidPassword = (password: string): boolean => {
-  // Mínimo 6 caracteres
-  return password.length >= 6;
+  return password.length >= 8;
 };
 
 export const validateLoginForm = (email: string, password: string) => {
@@ -19,8 +18,6 @@ export const validateLoginForm = (email: string, password: string) => {
 
   if (!password) {
     errors.password = 'La contraseña es requerida';
-  } else if (!isValidPassword(password)) {
-    errors.password = 'La contraseña debe tener al menos 6 caracteres';
   }
 
   return {
@@ -57,7 +54,7 @@ export const validateRegisterForm = (
   if (!password) {
     errors.password = 'La contraseña es requerida';
   } else if (!isValidPassword(password)) {
-    errors.password = 'La contraseña debe tener al menos 6 caracteres';
+    errors.password = 'La contraseña debe tener al menos 8 caracteres';
   }
 
   if (!confirmPassword) {

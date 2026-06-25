@@ -5,7 +5,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import pool from '../db';
 import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
 
-const MIN_PASSWORD_LENGTH = 6;
+const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**

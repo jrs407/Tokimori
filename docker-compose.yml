@@ -36,10 +36,12 @@ services:
     environment:
       - NODE_ENV=development
       - MYSQL_HOST=db
-      - MYSQL_USER=tokimori_user
-      - MYSQL_PASSWORD=tokimori_password
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=tokimori
       - MYSQL_PORT=3306
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
     depends_on:
       db:
         condition: service_healthy
@@ -60,11 +62,12 @@ services:
     environment:
       - NODE_ENV=development
       - MYSQL_HOST=db
-      - MYSQL_USER=tokimori_user
-      - MYSQL_PASSWORD=tokimori_password
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=tokimori
       - MYSQL_PORT=3306
-      - JWT_SECRET=dev_secret
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
     depends_on:
       db:
         condition: service_healthy
@@ -84,11 +87,12 @@ services:
     environment:
       - NODE_ENV=development
       - MYSQL_HOST=db
-      - MYSQL_USER=tokimori_user
-      - MYSQL_PASSWORD=tokimori_password
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=tokimori
       - MYSQL_PORT=3306
-      - JWT_SECRET=dev_secret
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
     depends_on:
       db:
         condition: service_healthy
@@ -108,11 +112,12 @@ services:
     environment:
       - NODE_ENV=development
       - MYSQL_HOST=db
-      - MYSQL_USER=tokimori_user
-      - MYSQL_PASSWORD=tokimori_password
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=tokimori
       - MYSQL_PORT=3306
-      - JWT_SECRET=dev_secret
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
     depends_on:
       db:
         condition: service_healthy
@@ -131,11 +136,12 @@ services:
       - ./Backend/services/objectivesService/src:/app/src
     environment:
       - MYSQL_HOST=db
-      - MYSQL_USER=tokimori_user
-      - MYSQL_PASSWORD=tokimori_password
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=tokimori
       - MYSQL_PORT=3306
-      - JWT_SECRET=dev_secret
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
     depends_on:
       db:
         condition: service_healthy
@@ -156,11 +162,12 @@ services:
       - NODE_ENV=development
       - PORT=8005
       - MYSQL_HOST=db
-      - MYSQL_USER=tokimori_user
-      - MYSQL_PASSWORD=tokimori_password
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=tokimori
       - MYSQL_PORT=3306
-      - JWT_SECRET=dev_secret
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
     depends_on:
       db:
         condition: service_healthy
@@ -173,10 +180,10 @@ services:
     container_name: tokimori-db
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: tokimori
-      MYSQL_USER: tokimori_user
-      MYSQL_PASSWORD: tokimori_password
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
       - "3307:3306"
     volumes:

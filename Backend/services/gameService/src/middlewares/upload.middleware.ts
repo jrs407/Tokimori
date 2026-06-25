@@ -21,7 +21,9 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     const normalizedName = file.originalname.replace(/\\/g, '/');
     const baseName = path.basename(normalizedName);
-    const safeName = baseName.replace(/[<>:"/\\|?*]+/g, '_') || `upload-${Date.now()}`;
+    const ext = path.extname(baseName);
+    const nameWithoutExt = path.basename(baseName, ext);
+    const safeName = `${nameWithoutExt.replace(/[<>:"/\\|?*]+/g, '_') || 'upload'}-${Date.now()}${ext}`;
     console.log('📝 Original filename:', file.originalname, '-> Safe filename:', safeName);
     cb(null, safeName);
   },

@@ -87,8 +87,8 @@ export const Profile = () => {
       setPwdFeedback({ type: 'error', message: 'Introduce tu contraseña actual.' });
       return;
     }
-    if (newPwd.length < 6) {
-      setPwdFeedback({ type: 'error', message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+    if (newPwd.length < 8) {
+      setPwdFeedback({ type: 'error', message: 'La nueva contraseña debe tener al menos 8 caracteres.' });
       return;
     }
     if (newPwd !== confirmPwd) {

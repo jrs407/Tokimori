@@ -1,13 +1,26 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv'
+import helmet from 'helmet';
+import dotenv from 'dotenv';
 import sessionRoutes from './routes/session.routes';
 
 dotenv.config();
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',');
+
+app.use(helmet());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 app.get('/health', (req, res) => {
