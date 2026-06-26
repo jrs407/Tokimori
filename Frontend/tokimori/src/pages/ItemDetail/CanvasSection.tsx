@@ -376,14 +376,8 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
   const [formSaving, setFormSaving]         = useState(false);
 
   /* ── Draw layer / task inputs / edit modal ───────────────────── */
-  const drawAboveKey = `tokimori_canvas_drawAbove_${idLibrary}`;
-  const [drawAbove, setDrawAboveState] = useState(() => {
-    try { return localStorage.getItem(`tokimori_canvas_drawAbove_${idLibrary}`) === 'true'; } catch { return false; }
-  });
-  const setDrawAbove = useCallback((v: boolean) => {
-    setDrawAboveState(v);
-    try { localStorage.setItem(drawAboveKey, String(v)); } catch {}
-  }, [drawAboveKey]);
+  const [drawAbove, setDrawAboveState] = useState(true);
+  const setDrawAbove = useCallback((v: boolean) => { setDrawAboveState(v); }, []);
   const drawAboveRef = useRef(drawAbove);
   useEffect(() => { drawAboveRef.current = drawAbove; }, [drawAbove]);
   const [taskInputs, setTaskInputs]         = useState<Record<string, string>>({});
