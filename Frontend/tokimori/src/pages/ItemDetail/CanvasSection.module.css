@@ -738,3 +738,54 @@
   padding: 0;
   border: none;
 }
+
+/* ── Minimap ── */
+.minimapWrap {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  width: 182px;
+  background: rgba(20, 20, 38, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 8px;
+  overflow: hidden;
+  z-index: 10001;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
+}
+
+.minimapHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 7px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.minimapLabel {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.38);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  user-select: none;
+}
+
+.minimapToggleBtn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.minimapToggleBtn:hover { color: rgba(255, 255, 255, 0.85); }
+
+.minimapCanvas {
+  display: block;
+  width: 180px;
+  height: 120px;
+  cursor: crosshair;
+}

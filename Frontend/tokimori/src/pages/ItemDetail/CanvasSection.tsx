@@ -485,7 +485,13 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
   const [editTextFontSize, setEditTextFontSize] = useState(18);
   const [editTextColor, setEditTextColor] = useState('#ffffff');
   const [editTextBold, setEditTextBold] = useState(false);
+  const [editShapeRotation, setEditShapeRotation] = useState(0);
   const [exporting, setExporting] = useState(false);
+
+  /* ── Minimap state ───────────────────────────────────────────── */
+  const [showMinimap, setShowMinimap] = useState(true);
+  const minimapRef    = useRef<HTMLCanvasElement>(null);
+  const minimapScale  = useRef<{ scale: number; tx: number; ty: number } | null>(null);
 
   /* ── Multi-select state ──────────────────────────────────────── */
   const [selectedIds, setSelectedIds]       = useState<Set<string>>(new Set());
@@ -500,6 +506,9 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
   const rubberEndScreen                 = useRef<{ ex: number; ey: number } | null>(null);
   const elemsStartPositions             = useRef<Record<string, { x: number; y: number }>>({});
   useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
+
+  /* ── Copy/paste clipboard ────────────────────────────────────── */
+  const clipboard = useRef<{ elements: CanvasElement[]; paths: DrawPath[] } | null>(null);
 
   /* ── Tool ref (always current) ───────────────────────────────── */
   const toolRef     = useRef<Tool>('select');
@@ -684,10 +693,107 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     return () => obs.disconnect();
   }, []);
 
+  /* ── Minimap render ──────────────────────────────────────────── */
+  useEffect(() => {
+    if (!showMinimap) return;
+    const mm = minimapRef.current; const ct = containerRef.current;
+    if (!mm || !ct) return;
+    const mmW = 180, mmH = 120;
+    mm.width = mmW; mm.height = mmH;
+    const ctx = mm.getContext('2d'); if (!ctx) return;
+
+    const b = board;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    b.elements.forEach(el => {
+      minX = Math.min(minX, el.x); minY = Math.min(minY, el.y);
+      maxX = Math.max(maxX, el.x + el.width); maxY = Math.max(maxY, el.y + el.height);
+    });
+    b.paths.forEach(p => p.points.forEach(pt => {
+      minX = Math.min(minX, pt.x); minY = Math.min(minY, pt.y);
+      maxX = Math.max(maxX, pt.x); maxY = Math.max(maxY, pt.y);
+    }));
+
+    const vLeft = -pan.x / zoom, vTop = -pan.y / zoom;
+    const vRight = (ct.clientWidth - pan.x) / zoom, vBottom = (ct.clientHeight - pan.y) / zoom;
+
+    if (!isFinite(minX)) { minX = vLeft; maxX = vRight; minY = vTop; maxY = vBottom; }
+    minX = Math.min(minX, vLeft) - 60; minY = Math.min(minY, vTop) - 60;
+    maxX = Math.max(maxX, vRight) + 60; maxY = Math.max(maxY, vBottom) + 60;
+
+    const cW = maxX - minX, cH = maxY - minY;
+    const sc = Math.min(mmW / cW, mmH / cH) * 0.92;
+    const tx = (mmW - cW * sc) / 2 - minX * sc;
+    const ty = (mmH - cH * sc) / 2 - minY * sc;
+    minimapScale.current = { scale: sc, tx, ty };
+
+    ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0, 0, mmW, mmH);
+
+    // Below paths
+    b.paths.filter(p => p.drawAbove === false).forEach(p => {
+      if (p.points.length < 2) return;
+      ctx.beginPath(); ctx.strokeStyle = p.color;
+      ctx.lineWidth = Math.max(0.5, p.width * sc); ctx.lineCap = 'round';
+      ctx.moveTo(p.points[0].x * sc + tx, p.points[0].y * sc + ty);
+      for (let i = 1; i < p.points.length; i++) ctx.lineTo(p.points[i].x * sc + tx, p.points[i].y * sc + ty);
+      ctx.stroke();
+    });
+
+    // Elements
+    b.elements.forEach(el => {
+      const ex = el.x * sc + tx, ey = el.y * sc + ty;
+      const ew = Math.max(2, el.width * sc), eh = Math.max(2, el.height * sc);
+      if (el.type === 'note')          { ctx.fillStyle = '#2a3050'; ctx.strokeStyle = '#667eea'; }
+      else if (el.type === 'checklist') { ctx.fillStyle = '#1e3028'; ctx.strokeStyle = '#2ecc71'; }
+      else if (el.type === 'image')     { ctx.fillStyle = '#3a2a1e'; ctx.strokeStyle = '#e67e22'; }
+      else                              { ctx.fillStyle = '#2a2a3e'; ctx.strokeStyle = '#888'; }
+      ctx.lineWidth = 0.5; ctx.fillRect(ex, ey, ew, eh); ctx.strokeRect(ex, ey, ew, eh);
+    });
+
+    // Above paths
+    b.paths.filter(p => p.drawAbove !== false).forEach(p => {
+      if (p.points.length < 2) return;
+      ctx.beginPath(); ctx.strokeStyle = p.color;
+      ctx.lineWidth = Math.max(0.5, p.width * sc); ctx.lineCap = 'round';
+      ctx.moveTo(p.points[0].x * sc + tx, p.points[0].y * sc + ty);
+      for (let i = 1; i < p.points.length; i++) ctx.lineTo(p.points[i].x * sc + tx, p.points[i].y * sc + ty);
+      ctx.stroke();
+    });
+
+    // Viewport rect
+    const vsx = vLeft * sc + tx, vsy = vTop * sc + ty;
+    const vsw = (vRight - vLeft) * sc, vsh = (vBottom - vTop) * sc;
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(vsx, vsy, vsw, vsh);
+    ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.lineWidth = 1; ctx.strokeRect(vsx, vsy, vsw, vsh);
+  }, [board, pan, zoom, showMinimap]);
+
+  const onMinimapClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const mm = minimapRef.current; const ct = containerRef.current;
+    if (!mm || !ct || !minimapScale.current) return;
+    const rect = mm.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const { scale: sc, tx, ty } = minimapScale.current;
+    const cx = (mx - tx) / sc, cy = (my - ty) / sc;
+    setPan({ x: ct.clientWidth / 2 - cx * zoomRef.current, y: ct.clientHeight / 2 - cy * zoomRef.current });
+  }, [setPan]);
+
   /* ── Wheel: zoom (ctrl) / pan ────────────────────────────────── */
   useEffect(() => {
     const el = containerRef.current; if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      // Allow natural scrolling inside overflowing elements (notes, checklists)
+      if (!e.ctrlKey && !e.metaKey) {
+        let t = e.target as Element | null;
+        while (t && t !== el) {
+          const oy = getComputedStyle(t).overflowY;
+          if ((oy === 'auto' || oy === 'scroll') && t.scrollHeight > t.clientHeight) {
+            const atTop    = t.scrollTop <= 0;
+            const atBottom = t.scrollTop + t.clientHeight >= t.scrollHeight - 1;
+            if (!((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom))) return;
+            break;
+          }
+          t = t.parentElement;
+        }
+      }
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
         const factor = e.deltaY > 0 ? 1 / ZOOM_STEP : ZOOM_STEP;
@@ -955,6 +1061,37 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
       if (e.code === 'Space') { e.preventDefault(); spaceDown.current = true; }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
       if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        const elems = boardRef.current.elements.filter(el => selectedIdsRef.current.has(el.id));
+        const paths = boardRef.current.paths.filter(p => selectedPathIdsRef.current.has(p.id));
+        if (elems.length > 0 || paths.length > 0) {
+          e.preventDefault();
+          clipboard.current = { elements: elems, paths };
+        }
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        if (!clipboard.current) return;
+        e.preventDefault();
+        const OFFSET = 20;
+        const maxZ = Math.max(0, ...boardRef.current.elements.map(el => el.zIndex));
+        const newElems = clipboard.current.elements.map((el, i) => ({
+          ...el, id: crypto.randomUUID(), x: el.x + OFFSET, y: el.y + OFFSET, zIndex: maxZ + 1 + i,
+        }));
+        const newPaths = clipboard.current.paths.map(p => ({
+          ...p, id: crypto.randomUUID(), points: p.points.map(pt => ({ x: pt.x + OFFSET, y: pt.y + OFFSET })),
+        }));
+        push();
+        onUpdate({
+          ...boardRef.current,
+          elements: [...boardRef.current.elements, ...newElems],
+          paths: [...boardRef.current.paths, ...newPaths],
+        });
+        const newIds = new Set(newElems.map(el => el.id));
+        const newPathIds = new Set(newPaths.map(p => p.id));
+        selectedIdsRef.current = newIds; setSelectedIds(newIds);
+        selectedPathIdsRef.current = newPathIds; setSelectedPathIds(newPathIds);
+        setSelectedId(newElems.length === 1 && newPaths.length === 0 ? newElems[0].id : null);
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         const hasElems = selectedIdsRef.current.size > 0;
         const hasPaths = selectedPathIdsRef.current.size > 0;
@@ -1438,7 +1575,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     if (!editingShape) return;
     onUpdate({ ...boardRef.current, elements: boardRef.current.elements.map(e =>
       e.id === editingShape.id
-        ? { ...e, strokeColor: editShapeStroke, fillColor: editShapeFill, strokeWidth: editShapeStrokeW }
+        ? { ...e, strokeColor: editShapeStroke, fillColor: editShapeFill, strokeWidth: editShapeStrokeW, rotation: editShapeRotation }
         : e
     )});
     setEditingShape(null);
@@ -1792,7 +1929,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
         </div>
 
         <div className={styles.toolHint}>
-          <span>Pan: Rueda | Espacio+Drag · Zoom: Ctrl+Rueda · Multi-sel: arrastrar vacío</span>
+          <span>Pan: Rueda | Esp+Drag · Zoom: Ctrl+Rueda · Copiar: Ctrl+C · Pegar: Ctrl+V</span>
         </div>
       </div>
 
@@ -1873,6 +2010,24 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
           <button className={styles.zoomBtn} onClick={onToggleSidebar} title={sidebarHidden ? 'Mostrar lista' : 'Modo pantalla completa'}>
             {sidebarHidden ? '⊞' : '⛶'}
           </button>
+        </div>
+
+        {/* ── Minimap ── */}
+        <div className={styles.minimapWrap}>
+          <div className={styles.minimapHeader}>
+            <span className={styles.minimapLabel}>Minimapa</span>
+            <button className={styles.minimapToggleBtn} onClick={() => setShowMinimap(v => !v)} title={showMinimap ? 'Ocultar minimapa' : 'Mostrar minimapa'}>
+              {showMinimap ? '−' : '+'}
+            </button>
+          </div>
+          {showMinimap && (
+            <canvas
+              ref={minimapRef}
+              className={styles.minimapCanvas}
+              onClick={onMinimapClick}
+              title="Haz clic para navegar"
+            />
+          )}
         </div>
       </div>
 
