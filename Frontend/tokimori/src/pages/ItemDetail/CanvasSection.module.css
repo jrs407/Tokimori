@@ -619,3 +619,122 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   SHAPE PICKER GRID
+══════════════════════════════════════════════════════════════════════ */
+.shapeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 4px 0 8px;
+}
+
+.shapeOption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid #3a3a5a;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.shapeOption:hover {
+  background: rgba(102,126,234,0.15);
+  border-color: rgba(102,126,234,0.6);
+  transform: translateY(-1px);
+}
+
+.shapeOptionIcon {
+  font-size: 28px;
+  line-height: 1;
+  color: #667eea;
+}
+
+.shapeOptionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b0b0c0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Shape form row (color / stroke options above grid) ── */
+.shapeFormRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  margin-bottom: 4px;
+}
+
+/* ── Text style row ── */
+.textStyleRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+}
+
+.textStyleLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #b0b0c0;
+}
+
+.textSizeInput {
+  width: 70px;
+  padding: 5px 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid #3a3a5a;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+.textSizeInput:focus { outline: none; border-color: #667eea; }
+
+/* ── Custom color picker (swatch + hidden input) ── */
+.colorPickerWrap {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(255,255,255,0.25);
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s;
+}
+.colorPickerWrap:hover { border-color: #667eea; }
+
+.colorPickerSwatch {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.colorPickerInput {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  padding: 0;
+  border: none;
+}

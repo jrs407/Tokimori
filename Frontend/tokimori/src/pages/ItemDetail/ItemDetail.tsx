@@ -123,6 +123,17 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
     catch { setNotes(prev => prev.map(n => n.idNotes === note.idNotes ? { ...n, isFavorite: note.isFavorite } : n)); }
   };
 
+  const [toastMsg, setToastMsg] = useState('');
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 1800);
+  };
+
+  const handleCopyNote = (note: Note) => {
+    const text = `${note.title}\n${'─'.repeat(40)}\n${note.text}`;
+    navigator.clipboard.writeText(text).then(() => showToast('¡Nota copiada!'));
+  };
+
   if (isLoading) return <p className={styles.loadingText}>Cargando notas...</p>;
 
   return (
@@ -177,6 +188,7 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
                     <button className={`${styles.iconBtn} ${note.isPinned ? styles.active : ''}`} title={note.isPinned ? 'Despinnear' : 'Pinnear'} onClick={() => handleTogglePin(note)}>📌</button>
                     <button className={`${styles.iconBtn} ${note.isFavorite ? styles.active : ''}`} title={note.isFavorite ? 'Quitar favorito' : 'Favorito'} onClick={() => handleToggleFav(note)}>⭐</button>
                     <button className={styles.iconBtn} title="Editar" onClick={() => isEditing ? setEditingId(null) : startEdit(note)}>✏️</button>
+                    <button className={styles.iconBtn} title="Copiar nota" onClick={() => handleCopyNote(note)}>📋</button>
                     <button className={styles.deleteIconBtn} title="Eliminar" onClick={() => handleDelete(note.idNotes)}>🗑️</button>
                   </div>
                 </div>
@@ -199,6 +211,7 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
           })
         )}
       </div>
+      {toastMsg && <div className={styles.copyToast}>{toastMsg}</div>}
     </div>
   );
 };
@@ -235,6 +248,9 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
   const [editObjTitle, setEditObjTitle] = useState('');
   const [editObjDesc, setEditObjDesc] = useState('');
   const [taskDragState, setTaskDragState] = useState<{ draggingId: number; overTaskId: number | null } | null>(null);
+  const [copyingObjId, setCopyingObjId] = useState<number | null>(null);
+  const [toastMsg, setToastMsg] = useState('');
+  const showToast = (msg: string) => { setToastMsg(msg); setTimeout(() => setToastMsg(''), 1800); };
 
   const load = useCallback(async () => {
     try {
@@ -417,6 +433,27 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
 
   const handleTaskDragEnd = () => setTaskDragState(null);
 
+  const handleCopyObjective = async (obj: ObjectiveWithTasks) => {
+    setCopyingObjId(obj.idObjectives);
+    try {
+      let tasks = obj.tasks;
+      if (tasks.length === 0) {
+        try { tasks = await objectivesService.getTasksByObjective(token, obj.idObjectives); }
+        catch { /* copy with empty tasks */ }
+      }
+      const lines = [obj.title];
+      if (obj.description) lines.push(obj.description);
+      if (tasks.length > 0) {
+        lines.push('');
+        tasks.forEach(t => lines.push(`[${t.completed ? '✓' : ' '}] ${t.title}`));
+      }
+      await navigator.clipboard.writeText(lines.join('\n'));
+      showToast('¡Checklist copiada!');
+    } finally {
+      setCopyingObjId(null);
+    }
+  };
+
   if (isLoading) return <p className={styles.loadingText}>Cargando checklist...</p>;
 
   return (
@@ -474,6 +511,7 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
                   <button className={`${styles.iconBtn} ${obj.isPinned ? styles.active : ''}`} title={obj.isPinned ? 'Despinnear' : 'Pinnear'} onClick={e => { e.stopPropagation(); handleToggleObjPin(obj); }}>📌</button>
                   <button className={`${styles.iconBtn} ${obj.isFavorite ? styles.active : ''}`} title={obj.isFavorite ? 'Quitar favorito' : 'Favorito'} onClick={e => { e.stopPropagation(); handleToggleObjFav(obj); }}>⭐</button>
                   <button className={styles.iconBtn} title="Editar" onClick={e => { e.stopPropagation(); if (editingObjId === obj.idObjectives) setEditingObjId(null); else startEditObj(obj); }}>✏️</button>
+                  <button className={`${styles.iconBtn} ${copyingObjId === obj.idObjectives ? styles.copying : ''}`} title="Copiar objetivo" disabled={copyingObjId === obj.idObjectives} onClick={e => { e.stopPropagation(); handleCopyObjective(obj); }}>📋</button>
                   <button className={styles.objectiveDeleteBtn} title="Eliminar objetivo" onClick={e => { e.stopPropagation(); handleDeleteObjective(obj.idObjectives); }}>🗑️</button>
                 </div>
                 {editingObjId === obj.idObjectives && (
@@ -554,6 +592,7 @@ const ChecklistSection = ({ idLibrary, token }: ChecklistSectionProps) => {
           })
         )}
       </div>
+      {toastMsg && <div className={styles.copyToast}>{toastMsg}</div>}
     </div>
   );
 };

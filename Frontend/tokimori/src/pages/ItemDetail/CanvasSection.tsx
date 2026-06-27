@@ -12,12 +12,15 @@ interface DrawPath { id: string; points: Point[]; color: string; width: number; 
 
 interface CanvasElement {
   id: string;
-  type: 'note' | 'checklist' | 'image';
+  type: 'note' | 'checklist' | 'image' | 'text' | 'shape';
   x: number; y: number; width: number; height: number; zIndex: number;
   noteId?: number; noteTitle?: string; noteText?: string;
   objId?: number; objTitle?: string;
   tasks?: { id: number; title: string; completed: boolean }[];
   imageSrc?: string;
+  textContent?: string; fontSize?: number; textColor?: string; textBold?: boolean;
+  shapeType?: 'rect' | 'circle' | 'heart' | 'star' | 'arrow' | 'line';
+  fillColor?: string; strokeColor?: string; strokeWidth?: number; rotation?: number;
 }
 interface CanvasBoard { id: string; name: string; paths: DrawPath[]; elements: CanvasElement[] }
 
@@ -88,11 +91,90 @@ function applyResize(
 /* ══════════════════════════════════════════════════════════════════
    CONSTANTS
 ══════════════════════════════════════════════════════════════════════ */
-const DRAW_COLORS = ['#ffffff', '#667eea', '#764ba2', '#2ecc71', '#e74c3c', '#ffc107', '#00bcd4', '#ff6b9d', '#b0b0c0'];
+const DRAW_COLORS = ['#ffffff'];
 const BRUSH_SIZES = [2, 5, 10, 18, 28];
 const ZOOM_MIN = 0.15;
 const ZOOM_MAX = 5;
 const ZOOM_STEP = 1.25;
+
+/* ══════════════════════════════════════════════════════════════════
+   EXPORT / DRAW HELPERS
+══════════════════════════════════════════════════════════════════════ */
+function renderPathOnCtx(
+  ctx: CanvasRenderingContext2D,
+  points: Point[], color: string, width: number,
+  tx: number, ty: number, scale: number,
+) {
+  if (points.length === 0) return;
+  const w = width * scale;
+  ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = w;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (points.length === 1) {
+    ctx.arc(points[0].x * scale + tx, points[0].y * scale + ty, w / 2, 0, Math.PI * 2);
+    ctx.fillStyle = color; ctx.fill(); return;
+  }
+  ctx.moveTo(points[0].x * scale + tx, points[0].y * scale + ty);
+  points.slice(1).forEach(p => ctx.lineTo(p.x * scale + tx, p.y * scale + ty));
+  ctx.stroke();
+}
+
+function rrectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, w: number, h: number, r: number,
+) {
+  const cr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + cr, y); ctx.lineTo(x + w - cr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + cr);
+  ctx.lineTo(x + w, y + h - cr); ctx.quadraticCurveTo(x + w, y + h, x + w - cr, y + h);
+  ctx.lineTo(x + cr, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - cr);
+  ctx.lineTo(x, y + cr); ctx.quadraticCurveTo(x, y, x + cr, y);
+  ctx.closePath();
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SHAPE HELPER
+══════════════════════════════════════════════════════════════════════ */
+function drawShapeOnCanvas(
+  ctx: CanvasRenderingContext2D,
+  shapeType: string, sx: number, sy: number, sw: number, sh: number,
+  fill: string, stroke: string, strokeW: number,
+) {
+  ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = strokeW;
+  if (shapeType === 'rect') {
+    ctx.beginPath(); ctx.rect(sx, sy, sw, sh); ctx.fill(); ctx.stroke();
+  } else if (shapeType === 'circle') {
+    ctx.beginPath(); ctx.ellipse(sx + sw / 2, sy + sh / 2, sw / 2, sh / 2, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  } else if (shapeType === 'line') {
+    ctx.beginPath(); ctx.moveTo(sx, sy + sh / 2); ctx.lineTo(sx + sw, sy + sh / 2);
+    ctx.lineWidth = Math.max(strokeW, 4); ctx.stroke();
+  } else if (shapeType === 'arrow') {
+    const my = sy + sh / 2, x1 = sx + sw * 0.1, x2 = sx + sw * 0.65;
+    const hw = sh * 0.35, hy = sh * 0.2;
+    ctx.beginPath();
+    ctx.moveTo(x1, my - hy); ctx.lineTo(x2, my - hy); ctx.lineTo(x2, my - hw);
+    ctx.lineTo(sx + sw * 0.9, my); ctx.lineTo(x2, my + hw); ctx.lineTo(x2, my + hy);
+    ctx.lineTo(x1, my + hy); ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if (shapeType === 'heart') {
+    const cx = sx + sw / 2, cy = sy + sh / 2, r = Math.min(sw, sh) * 0.35;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + r * 0.9);
+    ctx.bezierCurveTo(cx - r * 2, cy - r * 0.5, cx - r * 2, cy - r * 1.5, cx, cy - r * 0.5);
+    ctx.bezierCurveTo(cx + r * 2, cy - r * 1.5, cx + r * 2, cy - r * 0.5, cx, cy + r * 0.9);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if (shapeType === 'star') {
+    const cx = sx + sw / 2, cy = sy + sh / 2;
+    const or = Math.min(sw, sh) * 0.45, ir = or * 0.4;
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const angle = (i * Math.PI) / 5 - Math.PI / 2;
+      const rv = i % 2 === 0 ? or : ir;
+      const px = cx + rv * Math.cos(angle), py = cy + rv * Math.sin(angle);
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+}
 
 /* ══════════════════════════════════════════════════════════════════
    CANVAS SECTION (outer – sidebar + board)
@@ -361,6 +443,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
   const [dragLivePos, setDragLivePos] = useState<{ id: string; x: number; y: number } | null>(null);
   const [resizeLive, setResizeLive]   = useState<{ id: string; x: number; y: number; width: number; height: number } | null>(null);
+  const [rotationLive, setRotationLive] = useState<{ id: string; rotation: number } | null>(null);
   const [history, setHistory]         = useState<CanvasBoard[]>([]);
   const [redoStack, setRedoStack]     = useState<CanvasBoard[]>([]);
 
@@ -386,6 +469,23 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
   const [editNoteText, setEditNoteText]     = useState('');
   const [editClTitle, setEditClTitle]       = useState('');
   const [editSaving, setEditSaving]         = useState(false);
+
+  /* ── Text / Shape / Export state ────────────────────────────── */
+  const [textForm, setTextForm] = useState<{
+    content: string; cx: number; cy: number;
+    fontSize: number; textColor: string; textBold: boolean;
+  } | null>(null);
+  const [showShapePicker, setShowShapePicker] = useState(false);
+  const [shapeForm, setShapeForm] = useState({ strokeColor: '#667eea', fillColor: 'transparent', strokeWidth: 2 });
+  const [editingShape, setEditingShape] = useState<CanvasElement | null>(null);
+  const [editShapeStroke, setEditShapeStroke] = useState('#667eea');
+  const [editShapeFill, setEditShapeFill] = useState('transparent');
+  const [editShapeStrokeW, setEditShapeStrokeW] = useState(2);
+  const [editTextContent, setEditTextContent] = useState('');
+  const [editTextFontSize, setEditTextFontSize] = useState(18);
+  const [editTextColor, setEditTextColor] = useState('#ffffff');
+  const [editTextBold, setEditTextBold] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   /* ── Multi-select state ──────────────────────────────────────── */
   const [selectedIds, setSelectedIds]       = useState<Set<string>>(new Set());
@@ -432,6 +532,14 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
   const resizeHandleType  = useRef<ResizeHandle | null>(null);
   const resizeStartSnap   = useRef<{ sx: number; sy: number; x: number; y: number; w: number; h: number } | null>(null);
   const resizeLiveCurrent = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+
+  /* ── Rotate refs ─────────────────────────────────────────────── */
+  const isRotating       = useRef(false);
+  const rotatingId       = useRef<string | null>(null);
+  const rotationCenter   = useRef<{ x: number; y: number } | null>(null);
+  const rotationStartAng = useRef(0);
+  const rotationStartVal = useRef(0);
+  const rotationLiveCur  = useRef(0);
 
   /* ── Path drag refs ──────────────────────────────────────────── */
   const isDraggingPath  = useRef(false);
@@ -550,8 +658,8 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     };
 
     const allPaths = boardRef.current.paths;
-    const below = allPaths.filter(p => !p.drawAbove);
-    const above = allPaths.filter(p => p.drawAbove);
+    const below = allPaths.filter(p => p.drawAbove === false);
+    const above = allPaths.filter(p => p.drawAbove !== false);
     renderSubset(canvasRef.current,      below, drawAboveRef.current ? undefined : livePath);
     renderSubset(canvasAboveRef.current, above, drawAboveRef.current ? livePath  : undefined);
   };
@@ -650,6 +758,14 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
       const result = applyResize(resizeStartSnap.current, resizeHandleType.current, e.clientX, e.clientY, zoomRef.current);
       resizeLiveCurrent.current = result;
       setResizeLive({ id: resizingId.current, ...result });
+    }
+    if (isRotating.current && rotatingId.current && rotationCenter.current) {
+      const c = rotationCenter.current;
+      const ang = Math.atan2(e.clientY - c.y, e.clientX - c.x);
+      const delta = (ang - rotationStartAng.current) * 180 / Math.PI;
+      const newRot = ((rotationStartVal.current + delta) % 360 + 360) % 360;
+      rotationLiveCur.current = newRot;
+      setRotationLive({ id: rotatingId.current, rotation: newRot });
     }
   };
 
@@ -780,6 +896,21 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
       resizingId.current = null; resizeHandleType.current = null;
       resizeStartSnap.current = null; resizeLiveCurrent.current = null;
       setResizeLive(null);
+      return;
+    }
+    if (isRotating.current) {
+      isRotating.current = false;
+      const eid = rotatingId.current;
+      const rot = rotationLiveCur.current;
+      if (eid) {
+        push();
+        onUpdate({ ...boardRef.current, elements: boardRef.current.elements.map(el =>
+          el.id === eid ? { ...el, rotation: Math.round(rot) } : el
+        )});
+      }
+      rotatingId.current = null;
+      rotationCenter.current = null;
+      setRotationLive(null);
       return;
     }
     if (isErasing.current) {
@@ -1025,7 +1156,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     if (toolRef.current !== 'select') return;
     e.stopPropagation();
     const elem = boardRef.current.elements.find(el => el.id === id);
-    if (elem && (elem.type === 'note' || elem.type === 'checklist')) openEditElem(elem);
+    if (elem && (elem.type === 'note' || elem.type === 'checklist' || elem.type === 'text')) openEditElem(elem);
   };
 
   const startResize = (e: React.MouseEvent, elemId: string, handle: ResizeHandle, x: number, y: number, w: number, h: number) => {
@@ -1034,6 +1165,17 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     resizingId.current = elemId;
     resizeHandleType.current = handle;
     resizeStartSnap.current = { sx: e.clientX, sy: e.clientY, x, y, w, h };
+  };
+
+  const startRotate = (e: React.MouseEvent, elemId: string, screenCX: number, screenCY: number, curRot: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+    isRotating.current = true;
+    rotatingId.current = elemId;
+    rotationCenter.current = { x: screenCX, y: screenCY };
+    rotationStartAng.current = Math.atan2(e.clientY - screenCY, e.clientX - screenCX);
+    rotationStartVal.current = curRot;
+    rotationLiveCur.current = curRot;
   };
 
   /* ── Zoom controls ───────────────────────────────────────────── */
@@ -1055,8 +1197,9 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     onUpdate({ ...board, elements: board.elements.map(e => e.id === id ? { ...e, zIndex: 0 } : e) });
   };
   const bringPathFront = (pathId: string) => {
-    const path = board.paths.find(p => p.id === pathId); if (!path) return;
-    push(); onUpdate({ ...board, paths: [...board.paths.filter(p => p.id !== pathId), path] });
+    const b = boardRef.current;
+    const path = b.paths.find(p => p.id === pathId); if (!path) return;
+    push(); onUpdate({ ...b, paths: [...b.paths.filter(p => p.id !== pathId), path] });
   };
   const deleteElem = (id: string) => {
     push();
@@ -1213,6 +1356,11 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
       setEditNoteText(elem.noteText ?? '');
     } else if (elem.type === 'checklist') {
       setEditClTitle(elem.objTitle ?? '');
+    } else if (elem.type === 'text') {
+      setEditTextContent(elem.textContent ?? '');
+      setEditTextFontSize(elem.fontSize ?? 18);
+      setEditTextColor(elem.textColor ?? '#ffffff');
+      setEditTextBold(elem.textBold ?? false);
     }
   }, []);
 
@@ -1240,13 +1388,215 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     } catch {} finally { setEditSaving(false); }
   };
 
+  const saveTextEdit = () => {
+    if (!editingElem) return;
+    onUpdate({ ...boardRef.current, elements: boardRef.current.elements.map(e =>
+      e.id === editingElem.id
+        ? { ...e, textContent: editTextContent, fontSize: editTextFontSize, textColor: editTextColor, textBold: editTextBold }
+        : e
+    )});
+    setEditingElem(null);
+  };
+
+  /* ── Insert text / shape ─────────────────────────────────────── */
+  const insertText = (cx: number, cy: number, content: string, fontSize: number, textColor: string, textBold: boolean) => {
+    const el: CanvasElement = {
+      id: crypto.randomUUID(), type: 'text',
+      x: cx - 120, y: cy - 25, width: 240, height: Math.max(60, fontSize * 2.5),
+      zIndex: board.elements.length + 1,
+      textContent: content || 'Texto de ejemplo',
+      fontSize, textColor, textBold,
+    };
+    push(); onUpdate({ ...board, elements: [...board.elements, el] });
+  };
+
+  const insertShape = (shapeType: CanvasElement['shapeType']) => {
+    const c = visibleCenter();
+    const el: CanvasElement = {
+      id: crypto.randomUUID(), type: 'shape',
+      x: c.x - 75, y: c.y - 75, width: 150, height: 150,
+      zIndex: board.elements.length + 1,
+      shapeType,
+      fillColor: shapeForm.fillColor,
+      strokeColor: shapeForm.strokeColor,
+      strokeWidth: shapeForm.strokeWidth,
+      rotation: 0,
+    };
+    push(); onUpdate({ ...board, elements: [...board.elements, el] });
+    setShowShapePicker(false);
+  };
+
+  const openEditShape = (elem: CanvasElement) => {
+    setEditingShape(elem);
+    setEditShapeStroke(elem.strokeColor ?? '#667eea');
+    setEditShapeFill(elem.fillColor ?? 'transparent');
+    setEditShapeStrokeW(elem.strokeWidth ?? 2);
+    setEditShapeRotation(elem.rotation ?? 0);
+  };
+
+  const saveShapeEdit = () => {
+    if (!editingShape) return;
+    onUpdate({ ...boardRef.current, elements: boardRef.current.elements.map(e =>
+      e.id === editingShape.id
+        ? { ...e, strokeColor: editShapeStroke, fillColor: editShapeFill, strokeWidth: editShapeStrokeW }
+        : e
+    )});
+    setEditingShape(null);
+  };
+
+  /* ── Export helpers ──────────────────────────────────────────── */
+  const renderToCanvas = useCallback(async (): Promise<string> => {
+    const board = boardRef.current;
+    const PADDING = 60;
+
+    // Compute full bounding box in canvas coordinates (independent of pan/zoom)
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    board.elements.forEach(el => {
+      minX = Math.min(minX, el.x); minY = Math.min(minY, el.y);
+      maxX = Math.max(maxX, el.x + el.width); maxY = Math.max(maxY, el.y + el.height);
+    });
+    board.paths.forEach(p => p.points.forEach(pt => {
+      minX = Math.min(minX, pt.x); minY = Math.min(minY, pt.y);
+      maxX = Math.max(maxX, pt.x); maxY = Math.max(maxY, pt.y);
+    }));
+    if (!isFinite(minX)) { minX = 0; minY = 0; maxX = 800; maxY = 600; }
+
+    const contentW = maxX - minX + PADDING * 2;
+    const contentH = maxY - minY + PADDING * 2;
+    const MAX_DIM = 6000;
+    const sc = Math.min(1, MAX_DIM / Math.max(contentW, contentH));
+    const W = Math.max(1, Math.ceil(contentW * sc));
+    const H = Math.max(1, Math.ceil(contentH * sc));
+    const tx = (PADDING - minX) * sc; // canvas-coord → pixel offset X
+    const ty = (PADDING - minY) * sc; // canvas-coord → pixel offset Y
+
+    // Pre-load images
+    const imgEls = board.elements.filter(el => el.type === 'image' && el.imageSrc);
+    const imgMap = new Map<string, HTMLImageElement>();
+    await Promise.all(imgEls.map(el => new Promise<void>(resolve => {
+      const img = new Image();
+      img.onload = () => { imgMap.set(el.id, img); resolve(); };
+      img.onerror = resolve; img.src = el.imageSrc!;
+    })));
+
+    const off = document.createElement('canvas');
+    off.width = W; off.height = H;
+    const ctx = off.getContext('2d')!;
+
+    // Background
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, '#1a1a2e'); grad.addColorStop(1, '#16213e');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+
+    // Grid dots
+    ctx.fillStyle = 'rgba(90,90,110,0.32)';
+    const gs = 28 * sc;
+    for (let gx = tx % gs; gx < W; gx += gs)
+      for (let gy = ty % gs; gy < H; gy += gs) {
+        ctx.beginPath(); ctx.arc(gx, gy, 1, 0, Math.PI * 2); ctx.fill();
+      }
+
+    // Draw element on ctx at given pixel rect
+    const drawElement = (el: CanvasElement, sx: number, sy: number, sw: number, sh: number) => {
+      if (el.type === 'note') {
+        ctx.fillStyle = '#2a2a3e'; rrectPath(ctx, sx, sy, sw, sh, 10 * sc); ctx.fill();
+        ctx.strokeStyle = '#444'; ctx.lineWidth = 2; rrectPath(ctx, sx, sy, sw, sh, 10 * sc); ctx.stroke();
+        ctx.fillStyle = 'rgba(102,126,234,0.18)'; rrectPath(ctx, sx, sy, sw, Math.min(28 * sc, sh), 10 * sc); ctx.fill();
+        ctx.fillStyle = '#667eea'; ctx.font = `bold ${Math.max(9, 11 * sc)}px sans-serif`;
+        ctx.fillText('Nota', sx + 8 * sc, sy + 19 * sc);
+        ctx.fillStyle = '#fff'; ctx.font = `bold ${Math.max(10, 14 * sc)}px sans-serif`;
+        ctx.fillText((el.noteTitle ?? '').slice(0, 60), sx + 10 * sc, sy + 46 * sc);
+        ctx.fillStyle = '#b0b0c0'; ctx.font = `${Math.max(9, 12 * sc)}px sans-serif`;
+        (el.noteText ?? '').split('\n').slice(0, 10).forEach((line, i) =>
+          ctx.fillText(line.slice(0, 70), sx + 10 * sc, sy + 62 * sc + i * 16 * sc));
+      } else if (el.type === 'checklist') {
+        ctx.fillStyle = '#2a2a3e'; rrectPath(ctx, sx, sy, sw, sh, 10 * sc); ctx.fill();
+        ctx.strokeStyle = '#444'; ctx.lineWidth = 2; rrectPath(ctx, sx, sy, sw, sh, 10 * sc); ctx.stroke();
+        ctx.fillStyle = 'rgba(46,204,113,0.12)'; rrectPath(ctx, sx, sy, sw, Math.min(28 * sc, sh), 10 * sc); ctx.fill();
+        ctx.fillStyle = '#2ecc71'; ctx.font = `bold ${Math.max(9, 11 * sc)}px sans-serif`;
+        ctx.fillText((el.objTitle ?? '').slice(0, 50), sx + 8 * sc, sy + 19 * sc);
+        (el.tasks ?? []).slice(0, 12).forEach((t, i) => {
+          ctx.fillStyle = t.completed ? '#2ecc71' : '#b0b0c0';
+          ctx.font = `${Math.max(9, 12 * sc)}px sans-serif`;
+          ctx.fillText((t.completed ? '☑ ' : '☐ ') + t.title.slice(0, 55), sx + 10 * sc, sy + 38 * sc + i * 16 * sc);
+        });
+      } else if (el.type === 'image') {
+        const img = imgMap.get(el.id);
+        if (img) { ctx.save(); rrectPath(ctx, sx, sy, sw, sh, 8 * sc); ctx.clip(); ctx.drawImage(img, sx, sy, sw, sh); ctx.restore(); }
+      } else if (el.type === 'text') {
+        const fs = Math.max(10, (el.fontSize ?? 18) * sc);
+        ctx.fillStyle = el.textColor ?? '#ffffff';
+        ctx.font = `${el.textBold ? 'bold ' : ''}${fs}px sans-serif`;
+        (el.textContent ?? '').split('\n').forEach((line, i) => ctx.fillText(line, sx, sy + fs + i * fs * 1.4));
+      } else if (el.type === 'shape') {
+        drawShapeOnCanvas(ctx, el.shapeType ?? 'rect', sx, sy, sw, sh,
+          el.fillColor ?? 'transparent', el.strokeColor ?? '#667eea', (el.strokeWidth ?? 2) * sc);
+      }
+    };
+
+    // Below paths
+    board.paths.filter(p => !p.drawAbove).forEach(p => renderPathOnCtx(ctx, p.points, p.color, p.width, tx, ty, sc));
+
+    // Elements (sorted by zIndex)
+    [...board.elements].sort((a, b) => a.zIndex - b.zIndex).forEach(el => {
+      const sx = el.x * sc + tx, sy = el.y * sc + ty;
+      const sw = el.width * sc, sh = el.height * sc;
+      const rot = el.rotation ?? 0;
+      if (rot !== 0) {
+        ctx.save();
+        ctx.translate(sx + sw / 2, sy + sh / 2);
+        ctx.rotate((rot * Math.PI) / 180);
+        drawElement(el, -sw / 2, -sh / 2, sw, sh);
+        ctx.restore();
+      } else {
+        drawElement(el, sx, sy, sw, sh);
+      }
+    });
+
+    // Above paths
+    board.paths.filter(p => p.drawAbove !== false).forEach(p => renderPathOnCtx(ctx, p.points, p.color, p.width, tx, ty, sc));
+
+    return off.toDataURL('image/png');
+  }, []);
+
+  const exportPNG = useCallback(async () => {
+    setExporting(true);
+    try {
+      const dataUrl = await renderToCanvas();
+      if (!dataUrl) return;
+      const a = document.createElement('a');
+      a.download = `${boardRef.current.name}.png`;
+      a.href = dataUrl; a.click();
+    } finally { setExporting(false); }
+  }, [renderToCanvas]);
+
+  const exportPDF = useCallback(async () => {
+    setExporting(true);
+    try {
+      const dataUrl = await renderToCanvas();
+      if (!dataUrl) return;
+      const win = window.open('', '_blank');
+      if (!win) { alert('Permite ventanas emergentes para exportar PDF'); return; }
+      win.document.write(
+        `<!DOCTYPE html><html><head><title>${boardRef.current.name}</title>` +
+        `<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#fff}` +
+        `img{width:100%;height:auto;display:block}` +
+        `@media print{@page{margin:0}img{page-break-inside:avoid}}</style></head>` +
+        `<body><img src="${dataUrl}"/>` +
+        `<script>window.onload=function(){setTimeout(function(){window.print();},300)}<\/script>` +
+        `</body></html>`
+      );
+      win.document.close();
+    } finally { setExporting(false); }
+  }, [renderToCanvas]);
+
   /* ── Cursor ──────────────────────────────────────────────────── */
   const activeCursor = isPanning.current ? 'grabbing' : spaceDown.current ? 'grab'
     : tool === 'draw' ? 'crosshair' : tool === 'erase' ? 'cell' : 'default';
 
   const ctxAction = (fn: () => void) => { fn(); setCtxMenu(null); };
 
-  /* ── Selection overlay (resize handles) ─────────────────────── */
+  /* ── Selection overlay (resize + rotate handles) ─────────────── */
   const renderSelectionOverlay = () => {
     if (!selectedId || dragLivePos || selectedIds.size > 1) return null;
     const el = board.elements.find(e => e.id === selectedId);
@@ -1259,27 +1609,51 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     const sy = ly * zoom + pan.y;
     const sw = lw * zoom;
     const sh = lh * zoom;
+    const rot = rotationLive?.id === el.id ? rotationLive.rotation : (el.rotation ?? 0);
+    const canRotate = el.type === 'shape' || el.type === 'image';
     const H = 9;
-    const handles: Array<{ type: ResizeHandle; cx: number; cy: number; cursor: string }> = [
-      { type: 'tl', cx: sx,          cy: sy,          cursor: 'nw-resize' },
-      { type: 't',  cx: sx + sw / 2, cy: sy,          cursor: 'n-resize'  },
-      { type: 'tr', cx: sx + sw,     cy: sy,          cursor: 'ne-resize' },
-      { type: 'r',  cx: sx + sw,     cy: sy + sh / 2, cursor: 'e-resize'  },
-      { type: 'br', cx: sx + sw,     cy: sy + sh,     cursor: 'se-resize' },
-      { type: 'b',  cx: sx + sw / 2, cy: sy + sh,     cursor: 's-resize'  },
-      { type: 'bl', cx: sx,          cy: sy + sh,     cursor: 'sw-resize' },
-      { type: 'l',  cx: sx,          cy: sy + sh / 2, cursor: 'w-resize'  },
+    // Handle positions relative to the container (0,0 = top-left of element)
+    const handles: Array<{ type: ResizeHandle; rx: number; ry: number; cursor: string }> = [
+      { type: 'tl', rx: 0,    ry: 0,    cursor: 'nw-resize' },
+      { type: 't',  rx: sw/2, ry: 0,    cursor: 'n-resize'  },
+      { type: 'tr', rx: sw,   ry: 0,    cursor: 'ne-resize' },
+      { type: 'r',  rx: sw,   ry: sh/2, cursor: 'e-resize'  },
+      { type: 'br', rx: sw,   ry: sh,   cursor: 'se-resize' },
+      { type: 'b',  rx: sw/2, ry: sh,   cursor: 's-resize'  },
+      { type: 'bl', rx: 0,    ry: sh,   cursor: 'sw-resize' },
+      { type: 'l',  rx: 0,    ry: sh/2, cursor: 'w-resize'  },
     ];
     return (
-      <>
-        <div style={{ position: 'absolute', left: sx, top: sy, width: sw, height: sh, border: '2px solid #667eea', pointerEvents: 'none', zIndex: 9999, boxSizing: 'border-box', borderRadius: 4 }} />
+      // Single rotated container — all children inherit the same rotation,
+      // so handles and rotation knob always align with the element's visual orientation.
+      <div style={{
+        position: 'absolute', left: sx, top: sy, width: sw, height: sh,
+        transform: `rotate(${rot}deg)`, transformOrigin: `${sw/2}px ${sh/2}px`,
+        border: '2px solid #667eea', pointerEvents: 'none',
+        zIndex: 9999, boxSizing: 'border-box', borderRadius: 4,
+      }}>
         {handles.map(h => (
           <div key={h.type}
-            style={{ position: 'absolute', left: h.cx - H / 2, top: h.cy - H / 2, width: H, height: H, background: '#fff', border: '2px solid #667eea', borderRadius: 2, cursor: h.cursor, zIndex: 10000, pointerEvents: 'all', boxSizing: 'border-box' }}
+            style={{ position: 'absolute', left: h.rx - H/2, top: h.ry - H/2, width: H, height: H, background: '#fff', border: '2px solid #667eea', borderRadius: 2, cursor: h.cursor, pointerEvents: 'all', boxSizing: 'border-box' }}
             onMouseDown={e => startResize(e, selectedId, h.type, lx, ly, lw, lh)}
           />
         ))}
-      </>
+        {canRotate && (
+          <>
+            <div style={{ position: 'absolute', left: sw/2 - 1, top: -28, width: 2, height: 28, background: '#667eea', pointerEvents: 'none' }} />
+            <div
+              title={`Rotar (${Math.round(rot)}°)`}
+              style={{ position: 'absolute', left: sw/2 - 9, top: -41, width: 18, height: 18, background: '#fff', border: '2px solid #667eea', borderRadius: '50%', cursor: 'grab', pointerEvents: 'all', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, userSelect: 'none' }}
+              onMouseDown={e => {
+                const cr = containerRef.current?.getBoundingClientRect();
+                const screenCX = (cr?.left ?? 0) + sx + sw / 2;
+                const screenCY = (cr?.top  ?? 0) + sy + sh / 2;
+                startRotate(e, el.id, screenCX, screenCY, el.rotation ?? 0);
+              }}
+            >↻</div>
+          </>
+        )}
+      </div>
     );
   };
 
@@ -1310,6 +1684,12 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
               <button key={c} className={`${styles.colorDot} ${drawColor === c ? styles.colorDotActive : ''}`}
                 style={{ background: c }} onClick={() => setDrawColor(c)} title={c} />
             ))}
+            <label className={styles.colorPickerWrap} title="Color personalizado">
+              <div className={styles.colorPickerSwatch} style={{ background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' }} />
+              <input type="color" value={drawColor} onChange={e => setDrawColor(e.target.value)}
+                className={styles.colorPickerInput} />
+            </label>
+            <div className={styles.colorDot} style={{ background: drawColor, border: '2px dashed rgba(255,255,255,0.5)', pointerEvents: 'none', cursor: 'default' }} title={`Color seleccionado: ${drawColor}`} />
             <div className={styles.toolDivider} />
           </div>
         )}
@@ -1322,18 +1702,6 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
                 <div className={styles.sizeDot} style={{ width: Math.min(s, 18) + 'px', height: Math.min(s, 18) + 'px', background: tool === 'erase' ? '#b0b0c0' : '#fff' }} />
               </button>
             ))}
-            <div className={styles.toolDivider} />
-          </div>
-        )}
-
-        {tool === 'draw' && (
-          <div className={styles.toolGroup}>
-            <button className={`${styles.toolBtn} ${drawAbove ? styles.toolActive : ''}`}
-              onClick={() => setDrawAbove(v => !v)}
-              title={drawAbove ? 'Dibujo encima de elementos — click para poner debajo' : 'Dibujo debajo de elementos — click para poner encima'}>
-              <span className={styles.toolIcon}>{drawAbove ? '⬆' : '⬇'}</span>
-              <span className={styles.toolLabel}>{drawAbove ? 'Encima' : 'Debajo'}</span>
-            </button>
             <div className={styles.toolDivider} />
           </div>
         )}
@@ -1358,6 +1726,26 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
             <span className={styles.toolIcon}>🖼️</span><span className={styles.toolLabel}>Imagen</span>
           </button>
           <input ref={imageInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onImageFile} />
+          <div className={styles.toolDivider} />
+          <button className={styles.toolBtn} onClick={() => { const c = visibleCenter(); setTextForm({ content: '', cx: c.x, cy: c.y, fontSize: 18, textColor: '#ffffff', textBold: false }); }} title="Insertar texto plano">
+            <span className={styles.toolIcon}>T</span><span className={styles.toolLabel}>Texto</span>
+          </button>
+          <button className={`${styles.toolBtn} ${showShapePicker ? styles.toolActive : ''}`}
+            onClick={() => setShowShapePicker(v => !v)}
+            title="Insertar figura">
+            <span className={styles.toolIcon}>⬟</span><span className={styles.toolLabel}>Figuras</span>
+          </button>
+        </div>
+
+        <div className={styles.toolDivider} />
+
+        <div className={styles.toolGroup}>
+          <button className={styles.toolBtn} onClick={exportPNG} disabled={exporting} title="Exportar como PNG">
+            <span className={styles.toolIcon}>📷</span><span className={styles.toolLabel}>PNG</span>
+          </button>
+          <button className={styles.toolBtn} onClick={exportPDF} disabled={exporting} title="Exportar como PDF">
+            <span className={styles.toolIcon}>📄</span><span className={styles.toolLabel}>PDF</span>
+          </button>
         </div>
 
         <div className={styles.toolDivider} />
@@ -1430,10 +1818,11 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
                    : isMultiDragged ? el.y + multiDelta!.dy : el.y;
           const lw = resizeLive?.id === el.id ? resizeLive.width : el.width;
           const lh = resizeLive?.id === el.id ? resizeLive.height : el.height;
+          const liveEl = rotationLive?.id === el.id ? { ...el, rotation: rotationLive.rotation } : el;
           return (
             <ElementView
               key={el.id}
-              element={el}
+              element={liveEl}
               liveX={lx} liveY={ly}
               liveWidth={lw} liveHeight={lh}
               pan={pan} zoom={zoom}
@@ -1494,23 +1883,36 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
             <>
               <p className={styles.ctxLabel}>Trazo</p>
               <button className={styles.ctxItem} onClick={() => ctxAction(() => {
-                bringPathFront(ctxMenu.pathId!);
-                onUpdate({ ...boardRef.current, paths: boardRef.current.paths.map(p => p.id === ctxMenu.pathId ? { ...p, drawAbove: true } : p) });
+                push();
+                const b = boardRef.current; const pid = ctxMenu.pathId!;
+                const path = b.paths.find(p => p.id === pid); if (!path) return;
+                onUpdate({ ...b, paths: [...b.paths.filter(p => p.id !== pid), { ...path, drawAbove: true }] });
               })}>↑ Encima de elementos</button>
               <button className={styles.ctxItem} onClick={() => ctxAction(() => {
-                onUpdate({ ...boardRef.current, paths: boardRef.current.paths.map(p => p.id === ctxMenu.pathId ? { ...p, drawAbove: false } : p) });
+                push();
+                const b = boardRef.current; const pid = ctxMenu.pathId!;
+                onUpdate({ ...b, paths: b.paths.map(p => p.id === pid ? { ...p, drawAbove: false } : p) });
               })}>↓ Debajo de elementos</button>
               <div className={styles.ctxSep} />
               <button className={`${styles.ctxItem} ${styles.ctxDanger}`} onClick={() => ctxAction(() => deletePath(ctxMenu.pathId!))}>🗑️ Eliminar trazo</button>
             </>
           ) : ctxMenu.elemId ? (
             <>
-              {(ctxMenu.elemType === 'note' || ctxMenu.elemType === 'checklist') && (
+              {(ctxMenu.elemType === 'note' || ctxMenu.elemType === 'checklist' || ctxMenu.elemType === 'text') && (
                 <>
                   <button className={styles.ctxItem} onClick={() => ctxAction(() => {
                     const elem = boardRef.current.elements.find(e => e.id === ctxMenu.elemId);
                     if (elem) openEditElem(elem);
                   })}>✏️ Editar</button>
+                  <div className={styles.ctxSep} />
+                </>
+              )}
+              {ctxMenu.elemType === 'shape' && (
+                <>
+                  <button className={styles.ctxItem} onClick={() => ctxAction(() => {
+                    const elem = boardRef.current.elements.find(e => e.id === ctxMenu.elemId);
+                    if (elem) openEditShape(elem);
+                  })}>🎨 Editar figura</button>
                   <div className={styles.ctxSep} />
                 </>
               )}
@@ -1535,6 +1937,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
               <button className={styles.ctxItem} onClick={() => ctxAction(() => setChecklistForm({ title: '', desc: '', cx: ctxMenu.cx, cy: ctxMenu.cy }))}>✅ Nueva Checklist</button>
               <button className={styles.ctxItem} onClick={() => ctxAction(() => openClPicker(ctxMenu.cx, ctxMenu.cy))}>📁 Checklist existente</button>
               <button className={styles.ctxItem} onClick={() => ctxAction(() => imageInputRef.current?.click())}>🖼️ Insertar imagen</button>
+              <button className={styles.ctxItem} onClick={() => ctxAction(() => setTextForm({ content: '', cx: ctxMenu.cx, cy: ctxMenu.cy, fontSize: 18, textColor: '#ffffff', textBold: false }))}>T Insertar texto</button>
               <div className={styles.ctxSep} />
               <button className={`${styles.ctxItem} ${styles.ctxDanger}`} onClick={() => ctxAction(clearBoard)}>🗑️ Limpiar canvas</button>
             </>
@@ -1683,6 +2086,205 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
           </div>
         </div>
       )}
+
+      {/* ══════════════ TEXT CREATOR MODAL ══════════════ */}
+      {textForm && (
+        <div className={styles.overlay} onClick={() => setTextForm(null)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHead}>
+              <p className={styles.modalTitle}>T Insertar texto</p>
+              <button className={styles.modalClose} onClick={() => setTextForm(null)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <textarea className={styles.modalTextarea} placeholder="Escribe tu texto..." rows={4} value={textForm.content} autoFocus
+                onChange={e => setTextForm(f => f ? { ...f, content: e.target.value } : f)} />
+              <div className={styles.textStyleRow}>
+                <label className={styles.textStyleLabel}>
+                  Tamaño
+                  <input type="number" min={8} max={120} value={textForm.fontSize} className={styles.textSizeInput}
+                    onChange={e => setTextForm(f => f ? { ...f, fontSize: Math.max(8, Math.min(120, parseInt(e.target.value) || 18)) } : f)} />
+                </label>
+                <label className={styles.textStyleLabel}>
+                  Color
+                  <label className={styles.colorPickerWrap} style={{ cursor: 'pointer' }}>
+                    <div className={styles.colorPickerSwatch} style={{ background: textForm.textColor }} />
+                    <input type="color" value={textForm.textColor} className={styles.colorPickerInput}
+                      onChange={e => setTextForm(f => f ? { ...f, textColor: e.target.value } : f)} />
+                  </label>
+                </label>
+                <label className={styles.textStyleLabel} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                  <input type="checkbox" checked={textForm.textBold} style={{ accentColor: '#667eea', width: 14, height: 14 }}
+                    onChange={e => setTextForm(f => f ? { ...f, textBold: e.target.checked } : f)} />
+                  Negrita
+                </label>
+              </div>
+              <div className={styles.modalActions}>
+                <button className={styles.cancelBtn} onClick={() => setTextForm(null)}>Cancelar</button>
+                <button className={styles.saveBtn}
+                  onClick={() => { insertText(textForm.cx, textForm.cy, textForm.content, textForm.fontSize, textForm.textColor, textForm.textBold); setTextForm(null); }}>
+                  Insertar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════ SHAPE PICKER MODAL ══════════════ */}
+      {showShapePicker && (
+        <div className={styles.overlay} onClick={() => setShowShapePicker(false)}>
+          <div className={styles.modal} style={{ width: 360 }} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHead}>
+              <p className={styles.modalTitle}>⬟ Insertar figura</p>
+              <button className={styles.modalClose} onClick={() => setShowShapePicker(false)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              {/* Color / stroke options */}
+              <div className={styles.shapeFormRow}>
+                <label className={styles.textStyleLabel}>
+                  Contorno
+                  <label className={styles.colorPickerWrap}>
+                    <div className={styles.colorPickerSwatch} style={{ background: shapeForm.strokeColor }} />
+                    <input type="color" value={shapeForm.strokeColor} className={styles.colorPickerInput}
+                      onChange={e => setShapeForm(f => ({ ...f, strokeColor: e.target.value }))} />
+                  </label>
+                </label>
+                <label className={styles.textStyleLabel}>
+                  Relleno
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <label className={styles.colorPickerWrap} style={{ opacity: shapeForm.fillColor === 'transparent' ? 0.3 : 1 }}>
+                      <div className={styles.colorPickerSwatch} style={{ background: shapeForm.fillColor === 'transparent' ? '#667eea' : shapeForm.fillColor }} />
+                      <input type="color"
+                        value={shapeForm.fillColor === 'transparent' ? '#667eea' : shapeForm.fillColor}
+                        className={styles.colorPickerInput}
+                        onChange={e => setShapeForm(f => ({ ...f, fillColor: e.target.value }))} />
+                    </label>
+                    <label style={{ fontSize: 11, color: '#b0b0c0', display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={shapeForm.fillColor === 'transparent'}
+                        style={{ accentColor: '#667eea', width: 13, height: 13 }}
+                        onChange={e => setShapeForm(f => ({ ...f, fillColor: e.target.checked ? 'transparent' : '#667eea' }))} />
+                      Sin relleno
+                    </label>
+                  </div>
+                </label>
+                <label className={styles.textStyleLabel}>
+                  Grosor
+                  <input type="number" min={1} max={20} value={shapeForm.strokeWidth} className={styles.textSizeInput} style={{ width: 56 }}
+                    onChange={e => setShapeForm(f => ({ ...f, strokeWidth: Math.max(1, Math.min(20, parseInt(e.target.value) || 2)) }))} />
+                </label>
+              </div>
+              <div className={styles.shapeGrid}>
+                {([
+                  { key: 'rect',   label: 'Cuadrado',  icon: '□' },
+                  { key: 'circle', label: 'Círculo',   icon: '○' },
+                  { key: 'heart',  label: 'Corazón',   icon: '♥' },
+                  { key: 'star',   label: 'Estrella',  icon: '★' },
+                  { key: 'arrow',  label: 'Flecha',    icon: '→' },
+                  { key: 'line',   label: 'Línea',     icon: '─' },
+                ] as const).map(s => (
+                  <button key={s.key} className={styles.shapeOption}
+                    onClick={() => insertShape(s.key)}>
+                    <span className={styles.shapeOptionIcon}>{s.icon}</span>
+                    <span className={styles.shapeOptionLabel}>{s.label}</span>
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize: 11, color: '#b0b0c0', margin: 0, textAlign: 'center' }}>Mueve y redimensiona con el modo Mover · Clic derecho → Editar figura</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════ SHAPE EDIT MODAL ══════════════ */}
+      {editingShape && (
+        <div className={styles.overlay} onClick={() => setEditingShape(null)}>
+          <div className={styles.modal} style={{ width: 360 }} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHead}>
+              <p className={styles.modalTitle}>🎨 Editar figura</p>
+              <button className={styles.modalClose} onClick={() => setEditingShape(null)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <div className={styles.shapeFormRow}>
+                <label className={styles.textStyleLabel}>
+                  Contorno
+                  <label className={styles.colorPickerWrap}>
+                    <div className={styles.colorPickerSwatch} style={{ background: editShapeStroke }} />
+                    <input type="color" value={editShapeStroke} className={styles.colorPickerInput}
+                      onChange={e => setEditShapeStroke(e.target.value)} />
+                  </label>
+                </label>
+                <label className={styles.textStyleLabel}>
+                  Relleno
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <label className={styles.colorPickerWrap} style={{ opacity: editShapeFill === 'transparent' ? 0.3 : 1 }}>
+                      <div className={styles.colorPickerSwatch} style={{ background: editShapeFill === 'transparent' ? '#667eea' : editShapeFill }} />
+                      <input type="color"
+                        value={editShapeFill === 'transparent' ? '#667eea' : editShapeFill}
+                        className={styles.colorPickerInput}
+                        onChange={e => setEditShapeFill(e.target.value)} />
+                    </label>
+                    <label style={{ fontSize: 11, color: '#b0b0c0', display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={editShapeFill === 'transparent'}
+                        style={{ accentColor: '#667eea', width: 13, height: 13 }}
+                        onChange={e => setEditShapeFill(e.target.checked ? 'transparent' : '#667eea')} />
+                      Sin relleno
+                    </label>
+                  </div>
+                </label>
+                <label className={styles.textStyleLabel}>
+                  Grosor
+                  <input type="number" min={1} max={20} value={editShapeStrokeW} className={styles.textSizeInput} style={{ width: 56 }}
+                    onChange={e => setEditShapeStrokeW(Math.max(1, Math.min(20, parseInt(e.target.value) || 2)))} />
+                </label>
+              </div>
+              <div className={styles.modalActions}>
+                <button className={styles.cancelBtn} onClick={() => setEditingShape(null)}>Cancelar</button>
+                <button className={styles.saveBtn} onClick={saveShapeEdit}>Guardar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════ EDIT TEXT MODAL ══════════════ */}
+      {editingElem?.type === 'text' && (
+        <div className={styles.overlay} onClick={() => setEditingElem(null)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHead}>
+              <p className={styles.modalTitle}>T Editar texto</p>
+              <button className={styles.modalClose} onClick={() => setEditingElem(null)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <textarea className={styles.modalTextarea} placeholder="Texto..." rows={4} value={editTextContent} autoFocus
+                onChange={e => setEditTextContent(e.target.value)} />
+              <div className={styles.textStyleRow}>
+                <label className={styles.textStyleLabel}>
+                  Tamaño
+                  <input type="number" min={8} max={120} value={editTextFontSize} className={styles.textSizeInput}
+                    onChange={e => setEditTextFontSize(Math.max(8, Math.min(120, parseInt(e.target.value) || 18)))} />
+                </label>
+                <label className={styles.textStyleLabel}>
+                  Color
+                  <label className={styles.colorPickerWrap} style={{ cursor: 'pointer' }}>
+                    <div className={styles.colorPickerSwatch} style={{ background: editTextColor }} />
+                    <input type="color" value={editTextColor} className={styles.colorPickerInput}
+                      onChange={e => setEditTextColor(e.target.value)} />
+                  </label>
+                </label>
+                <label className={styles.textStyleLabel} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                  <input type="checkbox" checked={editTextBold} style={{ accentColor: '#667eea', width: 14, height: 14 }}
+                    onChange={e => setEditTextBold(e.target.checked)} />
+                  Negrita
+                </label>
+              </div>
+              <div className={styles.modalActions}>
+                <button className={styles.cancelBtn} onClick={() => setEditingElem(null)}>Cancelar</button>
+                <button className={styles.saveBtn} onClick={saveTextEdit}>Guardar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1826,14 +2428,78 @@ const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, z
   }
 
   /* ── Image ── */
-  if (type === 'image') return (
-    <div style={{ ...base, borderRadius: 8, border: isSelected ? '2px solid #667eea' : 'none' }}
+  if (type === 'image') {
+    const imgRot = element.rotation ?? 0;
+    return (
+      <div style={{ ...base, borderRadius: 8, border: isSelected ? '2px solid #667eea' : 'none',
+        transform: `scale(${zoom}) rotate(${imgRot}deg)`,
+        transformOrigin: `${liveWidth / 2}px ${liveHeight / 2}px`,
+      }}
+        onMouseDown={e => onMouseDown(e, id)}
+        onContextMenu={e => onContextMenu(e, id, type)}
+      >
+        <img src={element.imageSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} draggable={false} />
+      </div>
+    );
+  }
+
+  /* ── Text ── */
+  if (type === 'text') return (
+    <div
+      style={{ ...base, background: 'transparent', overflow: 'visible',
+        border: isSelected ? '2px dashed rgba(102,126,234,0.7)' : '2px dashed transparent',
+        borderRadius: 4 }}
       onMouseDown={e => onMouseDown(e, id)}
+      onDoubleClick={e => onDoubleClick(e, id)}
       onContextMenu={e => onContextMenu(e, id, type)}
     >
-      <img src={element.imageSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} draggable={false} />
+      <div style={{
+        width: '100%', height: '100%', padding: '4px',
+        color: element.textColor ?? '#ffffff',
+        fontSize: `${element.fontSize ?? 18}px`,
+        fontWeight: element.textBold ? 700 : 400,
+        lineHeight: 1.4,
+        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+        overflow: 'hidden',
+      }}>
+        {element.textContent || 'Texto'}
+      </div>
     </div>
   );
+
+  /* ── Shape ── */
+  if (type === 'shape') {
+    const sType = element.shapeType ?? 'rect';
+    const fill = element.fillColor ?? 'transparent';
+    const stroke = element.strokeColor ?? '#667eea';
+    const sw2 = element.strokeWidth ?? 2;
+    const rot = element.rotation ?? 0;
+    const shapeEl = (() => {
+      if (sType === 'rect')   return <rect x="2" y="2" width="96" height="96" fill={fill} stroke={stroke} strokeWidth={sw2} />;
+      if (sType === 'circle') return <ellipse cx="50" cy="50" rx="48" ry="48" fill={fill} stroke={stroke} strokeWidth={sw2} />;
+      if (sType === 'heart')  return <path d="M50 85 C50 85 8 60 8 33 C8 15 28 8 50 28 C72 8 92 15 92 33 C92 60 50 85 50 85Z" fill={fill} stroke={stroke} strokeWidth={sw2} />;
+      if (sType === 'star')   return <path d="M50,5 L61.8,38.2 L97,38.2 L68.1,59.8 L79.9,93 L50,71.4 L20.1,93 L31.9,59.8 L3,38.2 L38.2,38.2 Z" fill={fill} stroke={stroke} strokeWidth={sw2} />;
+      if (sType === 'arrow')  return <path d="M10,38 L62,38 L62,20 L90,50 L62,80 L62,62 L10,62 Z" fill={fill} stroke={stroke} strokeWidth={sw2} />;
+      if (sType === 'line')   return <line x1="5" y1="50" x2="95" y2="50" stroke={stroke} strokeWidth={Math.max(sw2, 6)} />;
+      return null;
+    })();
+    return (
+      <div
+        style={{ ...base, background: 'transparent', overflow: 'visible',
+          border: isSelected ? '2px dashed rgba(102,126,234,0.7)' : '2px dashed transparent',
+          borderRadius: 4,
+          transform: `scale(${zoom}) rotate(${rot}deg)`,
+          transformOrigin: `${liveWidth / 2}px ${liveHeight / 2}px`,
+        }}
+        onMouseDown={e => onMouseDown(e, id)}
+        onContextMenu={e => onContextMenu(e, id, type)}
+      >
+        <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ display: 'block' }}>
+          {shapeEl}
+        </svg>
+      </div>
+    );
+  }
 
   return null;
 });
