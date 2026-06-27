@@ -9,13 +9,14 @@ import { GlobalStats } from './pages/GlobalStats'
 import { Profile } from './pages/Profile'
 import { Settings } from './pages/Settings'
 import { timerStorage, computeRemaining, type StoredTimer } from './services/timer.storage'
-import { settingsStorage, applyAccentColor, applyReduceAnimations } from './services/settings.storage'
+import { settingsStorage, applyAccentColor, applyReduceAnimations, applyTheme } from './services/settings.storage'
 import './App.css'
 
 // Apply persisted visual settings on startup
 const _initSettings = settingsStorage.get()
 applyAccentColor(_initSettings.accentColor, _initSettings.accentHover)
 applyReduceAnimations(_initSettings.reduceAnimations)
+applyTheme(_initSettings.theme)
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -153,7 +154,7 @@ const GlobalTimerIndicator = () => {
         position: 'fixed',
         ...posStyle,
         zIndex: 9999,
-        background: '#1e1e35',
+        background: 'var(--timer-bg)',
         border: `2px solid ${accentColor}`,
         borderRadius: 14,
         padding: '12px 16px',
@@ -195,7 +196,7 @@ const GlobalTimerIndicator = () => {
           <span
             style={{
               fontSize: 10,
-              color: '#b0b0c0',
+              color: 'var(--text-secondary)',
               textTransform: 'uppercase',
               letterSpacing: '0.06em',
               fontWeight: 600,
@@ -207,7 +208,7 @@ const GlobalTimerIndicator = () => {
             style={{
               fontSize: 20,
               fontWeight: 700,
-              color: '#ffffff',
+              color: 'var(--text-primary)',
               letterSpacing: '0.02em',
               fontVariantNumeric: 'tabular-nums',
               lineHeight: 1.1,
@@ -224,7 +225,7 @@ const GlobalTimerIndicator = () => {
             style={{
               background: 'none',
               border: 'none',
-              color: '#b0b0c0',
+              color: 'var(--text-secondary)',
               cursor: 'pointer',
               fontSize: 16,
               lineHeight: 1,
@@ -267,7 +268,7 @@ const GlobalTimerIndicator = () => {
       <span
         style={{
           fontSize: 11,
-          color: '#b0b0c0',
+          color: 'var(--text-secondary)',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -281,6 +282,16 @@ const GlobalTimerIndicator = () => {
 }
 
 function App() {
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = () => {
+      const { theme } = settingsStorage.get()
+      if (theme === 'system') applyTheme('system')
+    }
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   return (
     <BrowserRouter>
       <Routes>

@@ -17,7 +17,7 @@
   display: flex;
   height: 100vh;
   width: 100%;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-tertiary) 100%);
 }
 
 .mainContent {
@@ -147,7 +147,7 @@
 
 .sectionTab:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--hover-bg);
 }
 
 .sectionTab.activeTab {
@@ -211,7 +211,7 @@
 
 .input {
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--input-bg);
   border: 1.5px solid var(--border-color);
   border-radius: 8px;
   color: var(--text-primary);

@@ -14,35 +14,25 @@
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .modalContent {
-  background: #2a2a3e;
+  background: var(--card-bg);
   border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   width: 90%;
   max-width: 500px;
   max-height: 90vh;
   overflow-y: auto;
   animation: slideUp 0.3s ease-out;
-  border: 1px solid #444;
+  border: 1px solid var(--border-color);
 }
 
 @keyframes slideUp {
-  from {
-    transform: translateY(50px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(50px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
 }
 
 .modalHeader {
@@ -50,20 +40,20 @@
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid #444;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .modalTitle {
   margin: 0;
   font-size: 24px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .closeButton {
   background: transparent;
   border: none;
-  color: #b0b0c0;
+  color: var(--text-secondary);
   font-size: 24px;
   cursor: pointer;
   padding: 0;
@@ -77,7 +67,7 @@
 }
 
 .closeButton:hover:not(:disabled) {
-  color: #ffffff;
+  color: var(--text-primary);
   background-color: rgba(102, 126, 234, 0.1);
 }
 
@@ -102,24 +92,24 @@
 .label {
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .input {
   padding: 10px 12px;
-  background-color: #16213e;
-  border: 1px solid #444;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   font-family: inherit;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  transition: border-color 0.2s ease;
 }
 
 .input:focus {
   outline: none;
   border-color: #667eea;
-  background-color: #1a2744;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
 }
 
 .input:disabled {
@@ -129,10 +119,10 @@
 
 .fileInput {
   padding: 10px 12px;
-  background-color: #16213e;
-  border: 1px solid #444;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  color: #b0b0c0;
+  color: var(--text-secondary);
   font-size: 14px;
   cursor: pointer;
 }
@@ -146,8 +136,8 @@
   margin-top: 10px;
   border-radius: 6px;
   overflow: hidden;
-  border: 1px solid #444;
-  background-color: #16213e;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
 }
 
 .imagePreview img {
@@ -172,15 +162,15 @@
   justify-content: flex-end;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid #444;
+  border-top: 1px solid var(--border-color);
 }
 
 .cancelButton {
   padding: 10px 20px;
-  background-color: #444;
-  border: 1px solid #555;
+  background-color: var(--border-color);
+  border: 1px solid var(--text-secondary);
   border-radius: 6px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -188,8 +178,8 @@
 }
 
 .cancelButton:hover:not(:disabled) {
-  background-color: #555;
-  border-color: #666;
+  background-color: var(--bg-secondary);
+  border-color: var(--text-primary);
 }
 
 .cancelButton:disabled {

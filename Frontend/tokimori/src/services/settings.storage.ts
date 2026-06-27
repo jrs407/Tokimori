@@ -4,11 +4,14 @@ export interface AccentPreset {
   hover: string;
 }
 
+export type ThemeMode = 'system' | 'light' | 'dark';
+
 export interface AppSettings {
   accentColor: string;
   accentHover: string;
   reduceAnimations: boolean;
   timerNotifications: boolean;
+  theme: ThemeMode;
 }
 
 export const ACCENT_PRESETS: AccentPreset[] = [
@@ -27,6 +30,7 @@ export const DEFAULTS: AppSettings = {
   accentHover: '#764ba2',
   reduceAnimations: false,
   timerNotifications: false,
+  theme: 'system',
 };
 
 export const settingsStorage = {
@@ -61,4 +65,10 @@ export function applyAccentColor(accent: string, hover: string): void {
 
 export function applyReduceAnimations(enabled: boolean): void {
   document.documentElement.classList.toggle('reduce-animations', enabled);
+}
+
+export function applyTheme(theme: ThemeMode): void {
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isLight = theme === 'light' || (theme === 'system' && !prefersDark);
+  document.documentElement.classList.toggle('light-theme', isLight);
 }

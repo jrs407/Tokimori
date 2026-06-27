@@ -6,9 +6,11 @@ import {
   settingsStorage,
   applyAccentColor,
   applyReduceAnimations,
+  applyTheme,
   ACCENT_PRESETS,
   DEFAULTS,
   type AppSettings,
+  type ThemeMode,
 } from '../../services/settings.storage';
 import styles from './Settings.module.css';
 
@@ -35,6 +37,7 @@ export const Settings = () => {
     settingsStorage.set(patch);
     if (patch.accentColor !== undefined) applyAccentColor(next.accentColor, next.accentHover);
     if (patch.reduceAnimations !== undefined) applyReduceAnimations(next.reduceAnimations);
+    if (patch.theme !== undefined) applyTheme(next.theme);
     showSaved();
   };
 
@@ -49,6 +52,7 @@ export const Settings = () => {
     setSettings(d);
     applyAccentColor(d.accentColor, d.accentHover);
     applyReduceAnimations(d.reduceAnimations);
+    applyTheme(d.theme);
     showSaved();
   };
 
@@ -123,6 +127,28 @@ export const Settings = () => {
                       title={preset.label}
                     >
                       <span className={styles.colorLabel}>{preset.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Theme mode */}
+              <div className={styles.fieldGroup}>
+                <label className={styles.label}>Tema</label>
+                <p className={styles.hint}>Elige el tema de la interfaz. «Sistema» detecta automáticamente la preferencia de tu dispositivo.</p>
+                <div className={styles.themeOptions}>
+                  {([
+                    ['system', '🖥', 'Sistema'],
+                    ['dark',   '🌙', 'Oscuro'],
+                    ['light',  '☀️', 'Claro'],
+                  ] as [ThemeMode, string, string][]).map(([mode, icon, label]) => (
+                    <button
+                      key={mode}
+                      className={`${styles.themeOption} ${settings.theme === mode ? styles.themeOptionActive : ''}`}
+                      onClick={() => update({ theme: mode })}
+                    >
+                      <span className={styles.themeOptionIcon}>{icon}</span>
+                      <span>{label}</span>
                     </button>
                   ))}
                 </div>

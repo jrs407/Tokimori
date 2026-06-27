@@ -741,7 +741,18 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     const ty = (mmH - cH * sc) / 2 - minY * sc;
     minimapScale.current = { scale: sc, tx, ty };
 
-    ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0, 0, mmW, mmH);
+    const mmRoot = document.documentElement;
+    const mmCs = getComputedStyle(mmRoot);
+    const mmBg = mmCs.getPropertyValue('--bg-primary').trim() || '#1a1a2e';
+    const mmIsLight = mmRoot.classList.contains('light-theme');
+    const mmViewFill    = mmIsLight ? 'rgba(0,0,0,0.05)'  : 'rgba(255,255,255,0.06)';
+    const mmViewStroke  = mmIsLight ? 'rgba(0,0,0,0.55)'  : 'rgba(255,255,255,0.65)';
+    const mmNoteColor   = mmIsLight ? '#ccd4f0'            : '#2a3050';
+    const mmCheckColor  = mmIsLight ? '#c0e8d0'            : '#1e3028';
+    const mmImgColor    = mmIsLight ? '#f0e0cc'            : '#3a2a1e';
+    const mmDefaultBg   = mmCs.getPropertyValue('--card-bg').trim() || '#2a2a3e';
+
+    ctx.fillStyle = mmBg; ctx.fillRect(0, 0, mmW, mmH);
 
     // Below paths
     b.paths.filter(p => p.drawAbove === false).forEach(p => {
@@ -757,10 +768,10 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     b.elements.forEach(el => {
       const ex = el.x * sc + tx, ey = el.y * sc + ty;
       const ew = Math.max(2, el.width * sc), eh = Math.max(2, el.height * sc);
-      if (el.type === 'note')          { ctx.fillStyle = '#2a3050'; ctx.strokeStyle = '#667eea'; }
-      else if (el.type === 'checklist') { ctx.fillStyle = '#1e3028'; ctx.strokeStyle = '#2ecc71'; }
-      else if (el.type === 'image')     { ctx.fillStyle = '#3a2a1e'; ctx.strokeStyle = '#e67e22'; }
-      else                              { ctx.fillStyle = '#2a2a3e'; ctx.strokeStyle = '#888'; }
+      if (el.type === 'note')           { ctx.fillStyle = mmNoteColor;  ctx.strokeStyle = '#667eea'; }
+      else if (el.type === 'checklist') { ctx.fillStyle = mmCheckColor; ctx.strokeStyle = '#2ecc71'; }
+      else if (el.type === 'image')     { ctx.fillStyle = mmImgColor;   ctx.strokeStyle = '#e67e22'; }
+      else                              { ctx.fillStyle = mmDefaultBg;  ctx.strokeStyle = '#888'; }
       ctx.lineWidth = 0.5; ctx.fillRect(ex, ey, ew, eh); ctx.strokeRect(ex, ey, ew, eh);
     });
 
@@ -777,8 +788,8 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     // Viewport rect
     const vsx = vLeft * sc + tx, vsy = vTop * sc + ty;
     const vsw = (vRight - vLeft) * sc, vsh = (vBottom - vTop) * sc;
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(vsx, vsy, vsw, vsh);
-    ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.lineWidth = 1; ctx.strokeRect(vsx, vsy, vsw, vsh);
+    ctx.fillStyle = mmViewFill; ctx.fillRect(vsx, vsy, vsw, vsh);
+    ctx.strokeStyle = mmViewStroke; ctx.lineWidth = 1; ctx.strokeRect(vsx, vsy, vsw, vsh);
   }, [board, pan, zoom, showMinimap]);
 
   const onMinimapClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1635,13 +1646,25 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     off.width = W; off.height = H;
     const ctx = off.getContext('2d')!;
 
+    // Read current theme colors
+    const expRoot = document.documentElement;
+    const expCs = getComputedStyle(expRoot);
+    const expBgA  = expCs.getPropertyValue('--bg-primary').trim()    || '#1a1a2e';
+    const expBgB  = expCs.getPropertyValue('--bg-tertiary').trim()   || '#16213e';
+    const expCard = expCs.getPropertyValue('--card-bg').trim()       || '#2a2a3e';
+    const expBdr  = expCs.getPropertyValue('--border-color').trim()  || '#444';
+    const expTxt  = expCs.getPropertyValue('--text-primary').trim()  || '#ffffff';
+    const expSub  = expCs.getPropertyValue('--text-secondary').trim()|| '#b0b0c0';
+    const expIsLight = expRoot.classList.contains('light-theme');
+    const expDot  = expIsLight ? 'rgba(50,50,80,0.12)' : 'rgba(90,90,110,0.32)';
+
     // Background
     const grad = ctx.createLinearGradient(0, 0, W, H);
-    grad.addColorStop(0, '#1a1a2e'); grad.addColorStop(1, '#16213e');
+    grad.addColorStop(0, expBgA); grad.addColorStop(1, expBgB);
     ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
 
     // Grid dots
-    ctx.fillStyle = 'rgba(90,90,110,0.32)';
+    ctx.fillStyle = expDot;
     const gs = 28 * sc;
     for (let gx = tx % gs; gx < W; gx += gs)
       for (let gy = ty % gs; gy < H; gy += gs) {
@@ -1651,24 +1674,24 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
     // Draw element on ctx at given pixel rect
     const drawElement = (el: CanvasElement, sx: number, sy: number, sw: number, sh: number) => {
       if (el.type === 'note') {
-        ctx.fillStyle = '#2a2a3e'; rrectPath(ctx, sx, sy, sw, sh, 10 * sc); ctx.fill();
-        ctx.strokeStyle = '#444'; ctx.lineWidth = 2; rrectPath(ctx, sx, sy, sw, sh, 10 * sc); ctx.stroke();
+        ctx.fillStyle = expCard; rrectPath(ctx, sx, sy, sw, sh, 10 * sc); ctx.fill();
+        ctx.strokeStyle = expBdr; ctx.lineWidth = 2; rrectPath(ctx, sx, sy, sw, sh, 10 * sc); ctx.stroke();
         ctx.fillStyle = 'rgba(102,126,234,0.18)'; rrectPath(ctx, sx, sy, sw, Math.min(28 * sc, sh), 10 * sc); ctx.fill();
         ctx.fillStyle = '#667eea'; ctx.font = `bold ${Math.max(9, 11 * sc)}px sans-serif`;
         ctx.fillText('Nota', sx + 8 * sc, sy + 19 * sc);
-        ctx.fillStyle = '#fff'; ctx.font = `bold ${Math.max(10, 14 * sc)}px sans-serif`;
+        ctx.fillStyle = expTxt; ctx.font = `bold ${Math.max(10, 14 * sc)}px sans-serif`;
         ctx.fillText((el.noteTitle ?? '').slice(0, 60), sx + 10 * sc, sy + 46 * sc);
-        ctx.fillStyle = '#b0b0c0'; ctx.font = `${Math.max(9, 12 * sc)}px sans-serif`;
+        ctx.fillStyle = expSub; ctx.font = `${Math.max(9, 12 * sc)}px sans-serif`;
         stripMd(el.noteText ?? '').split('\n').slice(0, 10).forEach((line, i) =>
           ctx.fillText(line.slice(0, 70), sx + 10 * sc, sy + 62 * sc + i * 16 * sc));
       } else if (el.type === 'checklist') {
-        ctx.fillStyle = '#2a2a3e'; rrectPath(ctx, sx, sy, sw, sh, 10 * sc); ctx.fill();
-        ctx.strokeStyle = '#444'; ctx.lineWidth = 2; rrectPath(ctx, sx, sy, sw, sh, 10 * sc); ctx.stroke();
+        ctx.fillStyle = expCard; rrectPath(ctx, sx, sy, sw, sh, 10 * sc); ctx.fill();
+        ctx.strokeStyle = expBdr; ctx.lineWidth = 2; rrectPath(ctx, sx, sy, sw, sh, 10 * sc); ctx.stroke();
         ctx.fillStyle = 'rgba(46,204,113,0.12)'; rrectPath(ctx, sx, sy, sw, Math.min(28 * sc, sh), 10 * sc); ctx.fill();
         ctx.fillStyle = '#2ecc71'; ctx.font = `bold ${Math.max(9, 11 * sc)}px sans-serif`;
         ctx.fillText((el.objTitle ?? '').slice(0, 50), sx + 8 * sc, sy + 19 * sc);
         (el.tasks ?? []).slice(0, 12).forEach((t, i) => {
-          ctx.fillStyle = t.completed ? '#2ecc71' : '#b0b0c0';
+          ctx.fillStyle = t.completed ? '#2ecc71' : expSub;
           ctx.font = `${Math.max(9, 12 * sc)}px sans-serif`;
           ctx.fillText((t.completed ? '☑ ' : '☐ ') + t.title.slice(0, 55), sx + 10 * sc, sy + 38 * sc + i * 16 * sc);
         });
@@ -1851,7 +1874,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
             {BRUSH_SIZES.map(s => (
               <button key={s} className={`${styles.sizeBtn} ${brushSize === s ? styles.toolActive : ''}`}
                 onClick={() => setBrushSize(s)} title={`${s}px`}>
-                <div className={styles.sizeDot} style={{ width: Math.min(s, 18) + 'px', height: Math.min(s, 18) + 'px', background: tool === 'erase' ? '#b0b0c0' : '#fff' }} />
+                <div className={styles.sizeDot} style={{ width: Math.min(s, 18) + 'px', height: Math.min(s, 18) + 'px', background: tool === 'erase' ? 'var(--text-secondary)' : 'var(--text-primary)' }} />
               </button>
             ))}
             <div className={styles.toolDivider} />
@@ -1957,8 +1980,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
         onMouseMove={onContainerMove}
         onContextMenu={onContainerContextMenu}
       >
-        <canvas ref={canvasRef}      className={styles.drawCanvas} style={{ zIndex: 1 }} />
-        <canvas ref={canvasAboveRef} className={styles.drawCanvas} style={{ zIndex: 9990, pointerEvents: 'none' }} />
+        <canvas ref={canvasRef} className={styles.drawCanvas} style={{ zIndex: 1 }} />
 
         {board.elements.map(el => {
           const isMultiDragged = multiDelta !== null && selectedIds.has(el.id) && el.id !== draggingId.current;
@@ -2015,6 +2037,9 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
 
         {/* Selection overlay with resize handles */}
         {renderSelectionOverlay()}
+
+        {/* Above-layer canvas: placed after ElementViews so DOM order guarantees it paints on top */}
+        <canvas ref={canvasAboveRef} className={styles.drawCanvas} style={{ zIndex: 9990, pointerEvents: 'none' }} />
 
         {/* ── Zoom widget ── */}
         <div className={styles.zoomWidget}>
@@ -2271,8 +2296,9 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
               <div className={styles.textStyleRow}>
                 <label className={styles.textStyleLabel}>
                   Tamaño
-                  <input type="number" min={8} max={120} value={textForm.fontSize} className={styles.textSizeInput}
-                    onChange={e => setTextForm(f => f ? { ...f, fontSize: Math.max(8, Math.min(120, parseInt(e.target.value) || 18)) } : f)} />
+                  <input type="number" value={textForm.fontSize} className={styles.textSizeInput}
+                    onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) setTextForm(f => f ? { ...f, fontSize: v } : f); }}
+                    onBlur={e => setTextForm(f => f ? { ...f, fontSize: Math.max(8, Math.min(120, parseInt(e.target.value) || 18)) } : f)} />
                 </label>
                 <label className={styles.textStyleLabel}>
                   Color
@@ -2329,7 +2355,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
                         className={styles.colorPickerInput}
                         onChange={e => setShapeForm(f => ({ ...f, fillColor: e.target.value }))} />
                     </label>
-                    <label style={{ fontSize: 11, color: '#b0b0c0', display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
+                    <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
                       <input type="checkbox" checked={shapeForm.fillColor === 'transparent'}
                         style={{ accentColor: '#667eea', width: 13, height: 13 }}
                         onChange={e => setShapeForm(f => ({ ...f, fillColor: e.target.checked ? 'transparent' : '#667eea' }))} />
@@ -2339,8 +2365,9 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
                 </label>
                 <label className={styles.textStyleLabel}>
                   Grosor
-                  <input type="number" min={1} max={20} value={shapeForm.strokeWidth} className={styles.textSizeInput} style={{ width: 56 }}
-                    onChange={e => setShapeForm(f => ({ ...f, strokeWidth: Math.max(1, Math.min(20, parseInt(e.target.value) || 2)) }))} />
+                  <input type="number" value={shapeForm.strokeWidth} className={styles.textSizeInput} style={{ width: 56 }}
+                    onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) setShapeForm(f => ({ ...f, strokeWidth: v })); }}
+                    onBlur={e => setShapeForm(f => ({ ...f, strokeWidth: Math.max(1, Math.min(20, parseInt(e.target.value) || 2)) }))} />
                 </label>
               </div>
               <div className={styles.shapeGrid}>
@@ -2359,7 +2386,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
                   </button>
                 ))}
               </div>
-              <p style={{ fontSize: 11, color: '#b0b0c0', margin: 0, textAlign: 'center' }}>Mueve y redimensiona con el modo Mover · Clic derecho → Editar figura</p>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0, textAlign: 'center' }}>Mueve y redimensiona con el modo Mover · Clic derecho → Editar figura</p>
             </div>
           </div>
         </div>
@@ -2393,7 +2420,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
                         className={styles.colorPickerInput}
                         onChange={e => setEditShapeFill(e.target.value)} />
                     </label>
-                    <label style={{ fontSize: 11, color: '#b0b0c0', display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
+                    <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
                       <input type="checkbox" checked={editShapeFill === 'transparent'}
                         style={{ accentColor: '#667eea', width: 13, height: 13 }}
                         onChange={e => setEditShapeFill(e.target.checked ? 'transparent' : '#667eea')} />
@@ -2403,8 +2430,9 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
                 </label>
                 <label className={styles.textStyleLabel}>
                   Grosor
-                  <input type="number" min={1} max={20} value={editShapeStrokeW} className={styles.textSizeInput} style={{ width: 56 }}
-                    onChange={e => setEditShapeStrokeW(Math.max(1, Math.min(20, parseInt(e.target.value) || 2)))} />
+                  <input type="number" value={editShapeStrokeW} className={styles.textSizeInput} style={{ width: 56 }}
+                    onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) setEditShapeStrokeW(v); }}
+                    onBlur={e => setEditShapeStrokeW(Math.max(1, Math.min(20, parseInt(e.target.value) || 2)))} />
                 </label>
               </div>
               <div className={styles.modalActions}>
@@ -2430,8 +2458,9 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
               <div className={styles.textStyleRow}>
                 <label className={styles.textStyleLabel}>
                   Tamaño
-                  <input type="number" min={8} max={120} value={editTextFontSize} className={styles.textSizeInput}
-                    onChange={e => setEditTextFontSize(Math.max(8, Math.min(120, parseInt(e.target.value) || 18)))} />
+                  <input type="number" value={editTextFontSize} className={styles.textSizeInput}
+                    onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) setEditTextFontSize(v); }}
+                    onBlur={e => setEditTextFontSize(Math.max(8, Math.min(120, parseInt(e.target.value) || 18)))} />
                 </label>
                 <label className={styles.textStyleLabel}>
                   Color
@@ -2505,7 +2534,7 @@ const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, z
 
   /* ── Note ── */
   if (type === 'note') return (
-    <div style={{ ...base, background: '#2a2a3e', border: `2px solid ${isSelected ? '#667eea' : '#444'}` }}
+    <div style={{ ...base, background: 'var(--card-bg)', border: `2px solid ${isSelected ? '#667eea' : 'var(--border-color)'}` }}
       onMouseDown={e => onMouseDown(e, id)}
       onDoubleClick={e => onDoubleClick(e, id)}
       onContextMenu={e => onContextMenu(e, id, type)}
@@ -2515,7 +2544,7 @@ const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, z
         {canInteract && <span style={{ fontSize: 9, color: 'rgba(102,126,234,0.6)', letterSpacing: '0.04em' }}>doble clic para editar</span>}
       </div>
       <div style={{ flex: 1, padding: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0 }}>
-        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>{element.noteTitle}</p>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>{element.noteTitle}</p>
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }} onWheel={e => e.stopPropagation()}>
           <MarkdownText text={element.noteText ?? ''} />
         </div>
@@ -2529,7 +2558,7 @@ const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, z
     const done = tasks.filter(t => t.completed).length;
     const allDone = tasks.length > 0 && done === tasks.length;
     return (
-      <div style={{ ...base, background: '#2a2a3e', border: `2px solid ${isSelected ? '#667eea' : '#444'}` }}
+      <div style={{ ...base, background: 'var(--card-bg)', border: `2px solid ${isSelected ? '#667eea' : 'var(--border-color)'}` }}
         onMouseDown={e => onMouseDown(e, id)}
         onDoubleClick={e => onDoubleClick(e, id)}
         onContextMenu={e => onContextMenu(e, id, type)}
@@ -2537,7 +2566,7 @@ const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, z
         {/* Header */}
         <div style={{ padding: '6px 8px', background: 'rgba(46,204,113,0.12)', borderBottom: '1px solid rgba(46,204,113,0.25)', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: '#2ecc71', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>✅ {element.objTitle}</span>
-          <span style={{ fontSize: 11, color: allDone ? '#2ecc71' : '#b0b0c0', fontWeight: 600, flexShrink: 0 }}>{done}/{tasks.length}</span>
+          <span style={{ fontSize: 11, color: allDone ? '#2ecc71' : 'var(--text-secondary)', fontWeight: 600, flexShrink: 0 }}>{done}/{tasks.length}</span>
           {canInteract && tasks.length > 0 && (
             <>
               <button title="Marcar todo"
@@ -2555,7 +2584,7 @@ const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, z
         {/* Task list — scrollable */}
         <div style={{ flex: 1, padding: '4px 6px', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 2, minHeight: 0 }}
           onWheel={e => e.stopPropagation()}>
-          {tasks.length === 0 && <p style={{ margin: 0, fontSize: 12, color: '#b0b0c0', fontStyle: 'italic', padding: '4px 2px' }}>Sin tareas aún</p>}
+          {tasks.length === 0 && <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', padding: '4px 2px' }}>Sin tareas aún</p>}
           {tasks.map(t => (
             <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 2px', borderRadius: 3 }}
               className="taskRow">
@@ -2564,7 +2593,7 @@ const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, z
                 onMouseDown={e => e.stopPropagation()}
                 onChange={e => { e.stopPropagation(); onTaskToggle(id, t.id, !t.completed); }}
               />
-              <span style={{ fontSize: 12, color: t.completed ? '#b0b0c0' : '#fff', textDecoration: t.completed ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{t.title}</span>
+              <span style={{ fontSize: 12, color: t.completed ? 'var(--text-secondary)' : 'var(--text-primary)', textDecoration: t.completed ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{t.title}</span>
               {canInteract && (
                 <button
                   onMouseDown={e => e.stopPropagation()}
@@ -2578,14 +2607,14 @@ const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, z
 
         {/* Add-task input (only in select mode) */}
         {canInteract && (
-          <div style={{ padding: '4px 6px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: 4, flexShrink: 0 }}
+          <div style={{ padding: '4px 6px', borderTop: '1px solid var(--divider-color)', display: 'flex', gap: 4, flexShrink: 0 }}
             onMouseDown={e => e.stopPropagation()}>
             <input
               value={taskInput}
               placeholder="Nueva tarea..."
               onChange={e => onSetTaskInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onAddTask(id, taskInput); } }}
-              style={{ flex: 1, minWidth: 0, padding: '4px 7px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, color: '#fff', fontSize: 11, outline: 'none' }}
+              style={{ flex: 1, minWidth: 0, padding: '4px 7px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: 4, color: 'var(--text-primary)', fontSize: 11, outline: 'none' }}
             />
             <button
               onClick={e => { e.stopPropagation(); onAddTask(id, taskInput); }}

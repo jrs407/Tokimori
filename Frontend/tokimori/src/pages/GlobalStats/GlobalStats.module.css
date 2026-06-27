@@ -16,14 +16,14 @@
   display: flex;
   height: 100vh;
   width: 100%;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-tertiary) 100%);
 }
 
 .mainContent {
   flex: 1;
   overflow-y: auto;
   padding: 40px;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-tertiary) 100%);
 }
 
 .contentContainer {
@@ -381,7 +381,7 @@
 
 .gameBarTrack {
   height: 5px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--divider-color);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -533,8 +533,8 @@
 }
 
 .badgeLocked {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--hover-bg);
+  border-color: var(--border-color);
   opacity: 0.5;
 }
 
