@@ -392,6 +392,62 @@
   border-color: var(--accent-color);
 }
 
+/* ── Note Editor with formatting toolbar ── */
+.noteEditorWrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.formatToolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 8px;
+  background: rgba(255,255,255,0.04);
+  border: 2px solid var(--border-color);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  flex-wrap: wrap;
+}
+
+.fmtBtn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 8px;
+  min-width: 28px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  font-family: inherit;
+}
+.fmtBtn:hover {
+  background: rgba(102,126,234,0.18);
+  border-color: rgba(102,126,234,0.3);
+  color: #fff;
+}
+.fmtBold   { font-weight: 700; }
+.fmtItalic { font-style: italic; }
+
+.fmtSep {
+  width: 1px;
+  height: 16px;
+  background: rgba(255,255,255,0.12);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* When inside the editor wrap, the textarea loses the top border-radius */
+.noteTextareaEditor {
+  border-radius: 0 0 8px 8px !important;
+  border-top-color: rgba(255,255,255,0.06) !important;
+}
+
 .formActions {
   display: flex;
   gap: 8px;

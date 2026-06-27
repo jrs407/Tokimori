@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { notesService, type Note } from '../../services/notes.service';
 import { objectivesService, type Objective } from '../../services/objectives.service';
 import { canvasService } from '../../services/canvas.service';
+import { MarkdownText } from '../../components/MarkdownText';
 import styles from './CanvasSection.module.css';
 
 /* ══════════════════════════════════════════════════════════════════
@@ -86,6 +87,20 @@ function applyResize(
   if (height < MIN_H) { if (handle.includes('t')) y = snap.y + snap.h - MIN_H; height = MIN_H; }
 
   return { x, y, width, height };
+}
+
+/* ── Strip markdown syntax for plain-text contexts (canvas 2D export) ── */
+function stripMd(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*([^*\n]+?)\*/g, '$1')
+    .replace(/~~(.+?)~~/g, '$1')
+    .replace(/`([^`\n]+?)`/g, '$1')
+    .replace(/^#{1,3} /gm, '')
+    .replace(/^[*-] /gm, '• ')
+    .replace(/^\d+\. /gm, '')
+    .replace(/^> /gm, '')
+    .replace(/^---+$/gm, '─────────');
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -1644,7 +1659,7 @@ const CanvasBoardView = ({ board, token, idLibrary, sidebarHidden, onToggleSideb
         ctx.fillStyle = '#fff'; ctx.font = `bold ${Math.max(10, 14 * sc)}px sans-serif`;
         ctx.fillText((el.noteTitle ?? '').slice(0, 60), sx + 10 * sc, sy + 46 * sc);
         ctx.fillStyle = '#b0b0c0'; ctx.font = `${Math.max(9, 12 * sc)}px sans-serif`;
-        (el.noteText ?? '').split('\n').slice(0, 10).forEach((line, i) =>
+        stripMd(el.noteText ?? '').split('\n').slice(0, 10).forEach((line, i) =>
           ctx.fillText(line.slice(0, 70), sx + 10 * sc, sy + 62 * sc + i * 16 * sc));
       } else if (el.type === 'checklist') {
         ctx.fillStyle = '#2a2a3e'; rrectPath(ctx, sx, sy, sw, sh, 10 * sc); ctx.fill();
@@ -2502,7 +2517,7 @@ const ElementView = memo(({ element, liveX, liveY, liveWidth, liveHeight, pan, z
       <div style={{ flex: 1, padding: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0 }}>
         <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>{element.noteTitle}</p>
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }} onWheel={e => e.stopPropagation()}>
-          <p style={{ margin: 0, fontSize: 12, color: '#b0b0c0', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{element.noteText}</p>
+          <MarkdownText text={element.noteText ?? ''} />
         </div>
       </div>
     </div>

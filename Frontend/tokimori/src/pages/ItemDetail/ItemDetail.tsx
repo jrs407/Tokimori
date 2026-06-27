@@ -7,7 +7,18 @@ import { objectivesService, type Objective, type Task } from '../../services/obj
 import { sessionService, type DayData } from '../../services/session.service';
 import { timerStorage, computeRemaining, computeProgress } from '../../services/timer.storage';
 import { CanvasSection } from './CanvasSection';
+import { MarkdownText } from '../../components/MarkdownText';
 import styles from './ItemDetail.module.css';
+
+/* ── Time formatter: decimal hours → "Xh Ym" ── */
+const fmtHM = (hours: number): string => {
+  if (hours <= 0) return '0m';
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+};
 
 type Tab = 'notes' | 'checklist' | 'sessions' | 'canvas';
 type NoteFilter = 'all' | 'favorites' | 'pinned';
@@ -28,6 +39,69 @@ const sortByPinnedThenTitle = <T extends { isPinned?: number | boolean; title: s
     if (ap !== bp) return bp ? 1 : -1;
     return a.title.localeCompare(b.title);
   });
+
+/* ─────────────────────────────────────────
+   NOTE EDITOR WITH FORMATTING TOOLBAR
+───────────────────────────────────────── */
+interface NoteEditorProps {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  maxLength?: number;
+  rows?: number;
+  autoFocus?: boolean;
+}
+
+const NoteEditor = ({ value, onChange, placeholder, maxLength, rows = 5, autoFocus }: NoteEditorProps) => {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  const apply = (pre: string, suf = '', linePrefix = '') => {
+    const el = ref.current; if (!el) return;
+    const { selectionStart: ss, selectionEnd: se } = el;
+    let next: string; let ns: number, ne: number;
+    if (linePrefix) {
+      const ls = value.lastIndexOf('\n', ss - 1) + 1;
+      next = value.slice(0, ls) + linePrefix + value.slice(ls);
+      ns = ss + linePrefix.length; ne = se + linePrefix.length;
+    } else {
+      const inner = value.slice(ss, se) || 'texto';
+      next = value.slice(0, ss) + pre + inner + suf + value.slice(se);
+      ns = ss + pre.length; ne = ns + inner.length;
+    }
+    onChange(next);
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(ns, ne); });
+  };
+
+  return (
+    <div className={styles.noteEditorWrap}>
+      <div className={styles.formatToolbar}>
+        <button type="button" className={`${styles.fmtBtn} ${styles.fmtBold}`}   title="Negrita"   onClick={() => apply('**', '**')}><strong>B</strong></button>
+        <button type="button" className={`${styles.fmtBtn} ${styles.fmtItalic}`} title="Cursiva"   onClick={() => apply('*', '*')}><em>I</em></button>
+        <button type="button" className={styles.fmtBtn}                           title="Tachado"   onClick={() => apply('~~', '~~')}><s>S</s></button>
+        <button type="button" className={styles.fmtBtn}                           title="Código"    onClick={() => apply('`', '`')}>{'<>'}</button>
+        <div className={styles.fmtSep} />
+        <button type="button" className={styles.fmtBtn} title="Título 1" onClick={() => apply('', '', '# ')}>H1</button>
+        <button type="button" className={styles.fmtBtn} title="Título 2" onClick={() => apply('', '', '## ')}>H2</button>
+        <button type="button" className={styles.fmtBtn} title="Título 3" onClick={() => apply('', '', '### ')}>H3</button>
+        <div className={styles.fmtSep} />
+        <button type="button" className={styles.fmtBtn} title="Lista"    onClick={() => apply('', '', '- ')}>• </button>
+        <button type="button" className={styles.fmtBtn} title="Numerada" onClick={() => apply('', '', '1. ')}>1.</button>
+        <button type="button" className={styles.fmtBtn} title="Cita"     onClick={() => apply('', '', '> ')}>❝</button>
+        <button type="button" className={styles.fmtBtn} title="Separador" onClick={() => apply('\n---\n', '')}>—</button>
+      </div>
+      <textarea
+        ref={ref}
+        className={`${styles.noteTextarea} ${styles.noteTextareaEditor}`}
+        value={value}
+        maxLength={maxLength}
+        rows={rows}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+        onChange={e => onChange(e.target.value)}
+      />
+    </div>
+  );
+};
 
 /* ─────────────────────────────────────────
    NOTES SECTION
@@ -159,8 +233,7 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
               <input className={styles.noteInput} placeholder="Título *" value={newTitle} maxLength={NOTE_TITLE_MAX}
                 onChange={e => setNewTitle(e.target.value)} autoFocus />
               <span className={`${styles.charCounter} ${noteCC(newTitle.length, NOTE_TITLE_MAX)}`}>{newTitle.length} / {NOTE_TITLE_MAX}</span>
-              <textarea className={styles.noteTextarea} placeholder="Contenido *" value={newText} maxLength={NOTE_TEXT_MAX} rows={4}
-                onChange={e => setNewText(e.target.value)} />
+              <NoteEditor value={newText} onChange={setNewText} placeholder="Contenido * (soporta **negrita**, *cursiva*, # Título, - lista...)" maxLength={NOTE_TEXT_MAX} rows={6} />
               <span className={`${styles.charCounter} ${noteCC(newText.length, NOTE_TEXT_MAX)}`}>{newText.length} / {NOTE_TEXT_MAX}</span>
               <div className={styles.formActions}>
                 <button className={styles.cancelBtn} onClick={() => setShowCreate(false)}>Cancelar</button>
@@ -196,7 +269,7 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
                   <div className={styles.noteEditForm}>
                     <input className={styles.noteInput} value={editTitle} maxLength={NOTE_TITLE_MAX} onChange={e => setEditTitle(e.target.value)} />
                     <span className={`${styles.charCounter} ${noteCC(editTitle.length, NOTE_TITLE_MAX)}`}>{editTitle.length} / {NOTE_TITLE_MAX}</span>
-                    <textarea className={styles.noteTextarea} value={editText} maxLength={NOTE_TEXT_MAX} rows={4} onChange={e => setEditText(e.target.value)} />
+                    <NoteEditor value={editText} onChange={setEditText} maxLength={NOTE_TEXT_MAX} rows={6} autoFocus />
                     <span className={`${styles.charCounter} ${noteCC(editText.length, NOTE_TEXT_MAX)}`}>{editText.length} / {NOTE_TEXT_MAX}</span>
                     <div className={styles.formActions}>
                       <button className={styles.cancelBtn} onClick={() => setEditingId(null)}>Cancelar</button>
@@ -204,7 +277,7 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
                     </div>
                   </div>
                 ) : (
-                  <p className={styles.noteText}>{note.text}</p>
+                  <MarkdownText text={note.text} className={styles.noteText} />
                 )}
               </div>
             );
@@ -846,7 +919,7 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours, 
     <div className={styles.sectionContent}>
       <div className={styles.sectionHeader}>
         <h2 className={styles.sectionTitle}>Sesiones</h2>
-        <span className={styles.totalHoursBadge}>⏱ {totalHours.toFixed(1)} h totales</span>
+        <span className={styles.totalHoursBadge}>⏱ {fmtHM(totalHours)} totales</span>
       </div>
 
       <div className={styles.scrollList}>
@@ -965,8 +1038,8 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours, 
                   <div className={styles.statsGrid}>
                     <div className={styles.statBox}>
                       <span className={styles.statIcon}>⏱️</span>
-                      <span className={styles.statValue}>{totalHours.toFixed(1)}h</span>
-                      <span className={styles.statLabel}>Horas totales</span>
+                      <span className={styles.statValue}>{fmtHM(totalHours)}</span>
+                      <span className={styles.statLabel}>Tiempo total</span>
                     </div>
                     <div className={styles.statBox}>
                       <span className={styles.statIcon}>🗓️</span>
@@ -975,7 +1048,7 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours, 
                     </div>
                     <div className={styles.statBox}>
                       <span className={styles.statIcon}>📊</span>
-                      <span className={styles.statValue}>{stats.avgHours.toFixed(1)}h</span>
+                      <span className={styles.statValue}>{fmtHM(stats.avgHours)}</span>
                       <span className={styles.statLabel}>Media / sesión</span>
                     </div>
                     <div className={styles.statBox}>
@@ -994,12 +1067,12 @@ const SessionsSection = ({ idLibrary, idGame, idUser, token, initialTotalHours, 
                           const label = dayLabels[date.getDay()];
                           return (
                             <div key={d.date} className={styles.barCol}>
-                              <span className={styles.barValue}>{d.hours > 0 ? d.hours.toFixed(1) : ''}</span>
+                              <span className={styles.barValue}>{d.hours > 0 ? fmtHM(d.hours) : ''}</span>
                               <div className={styles.barArea}>
                                 <div
                                   className={styles.bar}
                                   style={{ height: `${Math.max(pct, 2)}%` }}
-                                  title={`${d.hours.toFixed(2)}h`}
+                                  title={fmtHM(d.hours)}
                                 />
                               </div>
                               <span className={styles.barLabel}>{label}</span>

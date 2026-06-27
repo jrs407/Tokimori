@@ -9,10 +9,12 @@ import styles from './GlobalStats.module.css';
 const DAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 const fmt = (h: number) => {
-  if (h === 0) return '0h';
-  if (h < 1) return `${Math.round(h * 60)}m`;
-  if (h >= 100) return `${Math.round(h)}h`;
-  return `${parseFloat(h.toFixed(1))}h`;
+  if (h <= 0) return '0m';
+  const hrs = Math.floor(h);
+  const mins = Math.round((h - hrs) * 60);
+  if (hrs === 0) return `${mins}m`;
+  if (mins === 0) return `${hrs}h`;
+  return `${hrs}h ${mins}m`;
 };
 
 const getDayLabel = (dateStr: string) => {
@@ -355,13 +357,13 @@ export const GlobalStats = () => {
                       {data.totalHours >= 24 && (
                         <li className={styles.insightItem}>
                           <span>📅</span>
-                          <span>{(data.totalHours / 24).toFixed(1)} días completos invertidos</span>
+                          <span>{Math.floor(data.totalHours / 24)} días completos invertidos</span>
                         </li>
                       )}
                       {data.gamesCount > 0 && (
                         <li className={styles.insightItem}>
                           <span>📊</span>
-                          <span>{(data.totalHours / data.gamesCount).toFixed(1)}h de media por elemento</span>
+                          <span>{fmt(data.totalHours / data.gamesCount)} de media por elemento</span>
                         </li>
                       )}
                       {data.favoriteDay && (
@@ -379,7 +381,7 @@ export const GlobalStats = () => {
                       {data.sessionCount > 0 && (
                         <li className={styles.insightItem}>
                           <span>🎯</span>
-                          <span>{(data.totalHours / data.sessionCount).toFixed(1)}h de media por sesión</span>
+                          <span>{fmt(data.totalHours / data.sessionCount)} de media por sesión</span>
                         </li>
                       )}
                     </ul>
