@@ -63,13 +63,14 @@ export const createNote = async (req: AuthenticatedRequest, res: Response) => {
  */
 export const updateNote = async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const { idNote, title, text, colour, isFavorite, isPinned } = req.body as {
+        const { idNote, title, text, colour, isFavorite, isPinned, isMinimized } = req.body as {
             idNote?: number;
             title?: string;
             text?: string;
             colour?: number;
             isFavorite?: boolean;
             isPinned?: boolean;
+            isMinimized?: boolean;
         };
 
         const authenticatedUserId = req.user?.id;
@@ -83,7 +84,7 @@ export const updateNote = async (req: AuthenticatedRequest, res: Response) => {
             return res.status(400).json({ message: 'idNote is required.' });
         }
 
-        if (title === undefined && text === undefined && colour === undefined && isFavorite === undefined && isPinned === undefined) {
+        if (title === undefined && text === undefined && colour === undefined && isFavorite === undefined && isPinned === undefined && isMinimized === undefined) {
             return res.status(400).json({ message: 'At least one field must be provided for update.' });
         }
 
@@ -132,6 +133,11 @@ export const updateNote = async (req: AuthenticatedRequest, res: Response) => {
         if (isPinned !== undefined) {
             updates.push('isPinned = ?');
             values.push(isPinned ? 1 : 0);
+        }
+
+        if (isMinimized !== undefined) {
+            updates.push('isMinimized = ?');
+            values.push(isMinimized ? 1 : 0);
         }
 
         values.push(idNote);
@@ -185,7 +191,7 @@ export const getNotesByLibrary = async (req: AuthenticatedRequest, res: Response
         }
 
         const [notes] = await pool.query<RowDataPacket[]>(
-            `SELECT idNotes, library_idLibrary, title, text, colour, isFavorite, isPinned
+            `SELECT idNotes, library_idLibrary, title, text, colour, isFavorite, isPinned, isMinimized
              FROM notes
              WHERE library_idLibrary = ?
              ORDER BY isPinned DESC, title ASC`,
@@ -237,7 +243,7 @@ export const getPinnedNotes = async (req: AuthenticatedRequest, res: Response) =
         }
 
         const [notes] = await pool.query<RowDataPacket[]>(
-            `SELECT idNotes, library_idLibrary, title, text, colour, isFavorite, isPinned
+            `SELECT idNotes, library_idLibrary, title, text, colour, isFavorite, isPinned, isMinimized
              FROM notes
              WHERE library_idLibrary = ? AND isPinned = 1
              ORDER BY title ASC`,
@@ -289,7 +295,7 @@ export const getFavoriteNotes = async (req: AuthenticatedRequest, res: Response)
         }
 
         const [notes] = await pool.query<RowDataPacket[]>(
-            `SELECT idNotes, library_idLibrary, title, text, colour, isFavorite, isPinned
+            `SELECT idNotes, library_idLibrary, title, text, colour, isFavorite, isPinned, isMinimized
              FROM notes
              WHERE library_idLibrary = ? AND isFavorite = 1
              ORDER BY title ASC`,
@@ -377,7 +383,7 @@ export const getNote = async (req: AuthenticatedRequest, res: Response) => {
         }
 
         const [noteRows] = await pool.query<RowDataPacket[]>(
-            `SELECT n.idNotes, n.library_idLibrary, n.title, n.text, n.colour, n.isFavorite, n.isPinned, l.Users_idUsers
+            `SELECT n.idNotes, n.library_idLibrary, n.title, n.text, n.colour, n.isFavorite, n.isPinned, n.isMinimized, l.Users_idUsers
              FROM notes n
              JOIN library l ON n.library_idLibrary = l.idLibrary
              WHERE n.idNotes = ?`,
@@ -402,7 +408,8 @@ export const getNote = async (req: AuthenticatedRequest, res: Response) => {
             text: noteRows[0].text,
             colour: noteRows[0].colour,
             isFavorite: noteRows[0].isFavorite,
-            isPinned: noteRows[0].isPinned
+            isPinned: noteRows[0].isPinned,
+            isMinimized: noteRows[0].isMinimized,
         };
 
         return res.status(200).json({ note });
@@ -496,7 +503,7 @@ export const searchNotesByTitle = async (req: AuthenticatedRequest, res: Respons
 
         const searchPattern = `%${searchTerm}%`;
         const [notes] = await pool.query<RowDataPacket[]>(
-            `SELECT idNotes, library_idLibrary, title, text, colour, isFavorite, isPinned
+            `SELECT idNotes, library_idLibrary, title, text, colour, isFavorite, isPinned, isMinimized
              FROM notes
              WHERE library_idLibrary = ? AND title LIKE ?
              ORDER BY isPinned DESC, title ASC`,

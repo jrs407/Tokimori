@@ -259,6 +259,42 @@
   border-color: rgba(179, 160, 121, 0.4);
 }
 
+.noteCardMinimized {
+  padding-bottom: 12px;
+}
+
+.noteChevron {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 4px;
+  flex-shrink: 0;
+  transition: transform 0.2s, color 0.2s;
+  transform: rotate(0deg);
+  line-height: 1;
+  align-self: center;
+}
+
+.noteChevron:hover {
+  color: var(--accent-color);
+}
+
+.noteChevron.noteChevronOpen {
+  transform: rotate(90deg);
+}
+
+.noteSnippet {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 2px 0 0 0;
+  line-height: 1.45;
+  opacity: 0.75;
+  font-style: italic;
+  word-break: break-word;
+}
+
 .noteCardTop {
   display: flex;
   align-items: flex-start;
@@ -273,6 +309,13 @@
   color: var(--text-primary);
   margin: 0;
   word-break: break-word;
+  cursor: pointer;
+  user-select: none;
+}
+
+.noteTitle:hover {
+  color: var(--accent-color);
+  transition: color 0.15s;
 }
 
 .noteActions {

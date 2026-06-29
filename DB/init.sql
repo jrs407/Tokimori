@@ -131,6 +131,7 @@ CREATE TABLE IF NOT EXISTS `tokimori`.`notes` (
   `colour` INT NULL,
   `isFavorite` TINYINT(1) NOT NULL DEFAULT 0,
   `isPinned` TINYINT(1) NOT NULL DEFAULT 0,
+  `isMinimized` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`idNotes`),
   CONSTRAINT `fk_notes_library1`
     FOREIGN KEY (`library_idLibrary`)

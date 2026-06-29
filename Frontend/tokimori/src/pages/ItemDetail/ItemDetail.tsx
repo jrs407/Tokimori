@@ -113,6 +113,24 @@ const NOTE_TEXT_MAX  = 3000;
 const noteCC = (len: number, max: number) =>
   len >= max ? styles.charDanger : len >= Math.floor(max * 0.85) ? styles.charWarn : '';
 
+const noteSnippet = (text: string, maxLen = 120): string => {
+  const plain = text
+    .replace(/#{1,6}\s?/g, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/_(.+?)_/g, '$1')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')
+    .replace(/!\[.*?\]\(.*?\)/g, '')
+    .replace(/\[(.+?)\]\(.*?\)/g, '$1')
+    .replace(/^[-*+]\s/gm, '')
+    .replace(/^\d+\.\s/gm, '')
+    .replace(/^>\s?/gm, '')
+    .replace(/\n+/g, ' ')
+    .trim();
+  return plain.length > maxLen ? plain.slice(0, maxLen) + '…' : plain;
+};
+
 const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -126,6 +144,13 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editText, setEditText] = useState('');
+  const handleToggleMinimize = async (note: Note) => {
+    const newVal = !note.isMinimized;
+    setNotes(prev => prev.map(n => n.idNotes === note.idNotes ? { ...n, isMinimized: newVal } : n));
+    if (editingId === note.idNotes) setEditingId(null);
+    try { await notesService.updateNote(token, note.idNotes, { isMinimized: newVal }); }
+    catch { setNotes(prev => prev.map(n => n.idNotes === note.idNotes ? { ...n, isMinimized: note.isMinimized } : n)); }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -157,7 +182,7 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
       const id = await notesService.createNote(token, idLibrary, newTitle.trim(), newText.trim());
       setNotes(prev => [...prev, {
         idNotes: id, library_idLibrary: idLibrary,
-        title: newTitle.trim(), text: newText.trim(), isFavorite: false, isPinned: false,
+        title: newTitle.trim(), text: newText.trim(), isFavorite: false, isPinned: false, isMinimized: false,
       }]);
       setNewTitle(''); setNewText(''); setShowCreate(false);
     } catch { setError('Error al crear la nota'); }
@@ -172,7 +197,12 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
     } catch { setError('Error al eliminar la nota'); }
   };
 
-  const startEdit = (note: Note) => { setEditingId(note.idNotes); setEditTitle(note.title); setEditText(note.text); };
+  const startEdit = (note: Note) => {
+    if (note.isMinimized) handleToggleMinimize(note);
+    setEditingId(note.idNotes);
+    setEditTitle(note.title);
+    setEditText(note.text);
+  };
 
   const handleSaveEdit = async (idNote: number) => {
     if (!editTitle.trim() || !editText.trim()) return;
@@ -249,14 +279,21 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
         ) : (
           displayedNotes.map(note => {
             const isEditing = editingId === note.idNotes;
+            const isMinimized = Boolean(note.isMinimized);
             let cardClass = styles.noteCard;
             if (note.isPinned && note.isFavorite) cardClass += ' ' + styles.pinnedFavorite;
             else if (note.isPinned) cardClass += ' ' + styles.pinned;
             else if (note.isFavorite) cardClass += ' ' + styles.favorite;
+            if (isMinimized) cardClass += ' ' + styles.noteCardMinimized;
             return (
               <div key={note.idNotes} className={cardClass}>
                 <div className={styles.noteCardTop}>
-                  <h3 className={styles.noteTitle}>{note.title}</h3>
+                  <button
+                    className={`${styles.noteChevron} ${isMinimized ? '' : styles.noteChevronOpen}`}
+                    title={isMinimized ? 'Expandir nota' : 'Minimizar nota'}
+                    onClick={() => handleToggleMinimize(note)}
+                  >▶</button>
+                  <h3 className={styles.noteTitle} onClick={() => handleToggleMinimize(note)}>{note.title}</h3>
                   <div className={styles.noteActions}>
                     <button className={`${styles.iconBtn} ${note.isPinned ? styles.active : ''}`} title={note.isPinned ? 'Despinnear' : 'Pinnear'} onClick={() => handleTogglePin(note)}>📌</button>
                     <button className={`${styles.iconBtn} ${note.isFavorite ? styles.active : ''}`} title={note.isFavorite ? 'Quitar favorito' : 'Favorito'} onClick={() => handleToggleFav(note)}>⭐</button>
@@ -265,7 +302,9 @@ const NotesSection = ({ idLibrary, token }: NotesSectionProps) => {
                     <button className={styles.deleteIconBtn} title="Eliminar" onClick={() => handleDelete(note.idNotes)}>🗑️</button>
                   </div>
                 </div>
-                {isEditing ? (
+                {isMinimized ? (
+                  <p className={styles.noteSnippet}>{noteSnippet(note.text)}</p>
+                ) : isEditing ? (
                   <div className={styles.noteEditForm}>
                     <input className={styles.noteInput} value={editTitle} maxLength={NOTE_TITLE_MAX} onChange={e => setEditTitle(e.target.value)} />
                     <span className={`${styles.charCounter} ${noteCC(editTitle.length, NOTE_TITLE_MAX)}`}>{editTitle.length} / {NOTE_TITLE_MAX}</span>
